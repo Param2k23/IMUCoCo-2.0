@@ -1,0 +1,11 @@
+# SensorLoc — install PyTorch *before* or *after* this file (see venv steps below).
+# This file is everything except torch, so you can pick CPU vs CUDA from pytorch.org.
+
+numpy>=1.22
+scipy>=1.9
+scikit-learn>=1.2
+matplotlib>=3.6
+seaborn>=0.12
+
+# Optional: some SMPL tooling; preprocess_amass.py uses pickled SMPL + chumpy stub
+smplx>=0.1.28

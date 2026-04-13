@@ -1,0 +1,20 @@
+# Python
+.venv/
+venv/
+__pycache__/
+*.py[cod]
+*$py.class
+*.egg-info/
+.pytest_cache/
+.mypy_cache/
+
+# Project outputs (regenerate locally)
+checkpoints/
+data/
+results/
+
+# OS / IDE
+.DS_Store
+Thumbs.db
+.idea/
+.vscode/
