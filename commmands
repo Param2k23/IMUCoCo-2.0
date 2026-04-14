@@ -1,0 +1,85 @@
+# From repo root:
+# /home/nimit/IMUCoCo-2.0
+
+# ------------------------------------------------------------------
+# 0) Create output directories
+# ------------------------------------------------------------------
+mkdir -p logs checkpoints/single_subject_full checkpoints/full_split_full results/single_subject_full results/full_split_full data/processed
+
+# ------------------------------------------------------------------
+# 1) Single-subject pipeline (ignore source train/test split)
+# ------------------------------------------------------------------
+
+# 1a) Preprocess single-subject dataset (example: subject s_01)
+"/home/nimit/IMUCoCo-2.0/.venv/bin/python" preprocess_vimu.py \
+  --mode single_subject \
+  --train_dir data/DIP_IMU_train_real_imu_position_only \
+  --test_dir data/DIP_IMU_test_real_imu_position_only \
+  --train_csv data/DIP_IMU_train_real_imu_position_only.csv \
+  --subject_id 1 \
+  --test_ratio 0.2 \
+  --seed 42 \
+  --out_train data/processed/single_subject_train.npz \
+  --out_test data/processed/single_subject_test.npz \
+  2>&1 | tee logs/preprocess_single_subject_full.log
+
+# 1b) Train (fixed split, full run on CUDA)
+"/home/nimit/IMUCoCo-2.0/.venv/bin/python" train.py \
+  --mode fixed_split \
+  --train_data data/processed/single_subject_train.npz \
+  --val_data data/processed/single_subject_test.npz \
+  --out_dir checkpoints/single_subject_full \
+  --arch resnet \
+  --epochs 80 \
+  --batch_size 128 \
+  --lr 1e-3 \
+  --patience 15 \
+  --device cuda \
+  2>&1 | tee logs/train_single_subject_full.log
+
+# 1c) Evaluate
+"/home/nimit/IMUCoCo-2.0/.venv/bin/python" evaluate.py \
+  --checkpoint checkpoints/single_subject_full/best_model.pt \
+  --data data/processed/single_subject_test.npz \
+  --out_dir results/single_subject_full \
+  --vote_k 5 \
+  --batch_size 256 \
+  2>&1 | tee logs/eval_single_subject_full.log
+
+
+# ------------------------------------------------------------------
+# 2) Full-dataset predefined-split pipeline (respect train/test folders)
+# ------------------------------------------------------------------
+
+# 2a) Preprocess predefined train/test split
+"/home/nimit/IMUCoCo-2.0/.venv/bin/python" preprocess_vimu.py \
+  --mode predefined_split \
+  --train_dir data/DIP_IMU_train_real_imu_position_only \
+  --test_dir data/DIP_IMU_test_real_imu_position_only \
+  --train_csv data/DIP_IMU_train_real_imu_position_only.csv \
+  --out_train data/processed/full_train.npz \
+  --out_test data/processed/full_test.npz \
+  2>&1 | tee logs/preprocess_full_split.log
+
+# 2b) Train (fixed split, full run on CUDA)
+"/home/nimit/IMUCoCo-2.0/.venv/bin/python" train.py \
+  --mode fixed_split \
+  --train_data data/processed/full_train.npz \
+  --val_data data/processed/full_test.npz \
+  --out_dir checkpoints/full_split_full \
+  --arch resnet \
+  --epochs 80 \
+  --batch_size 128 \
+  --lr 1e-3 \
+  --patience 15 \
+  --device cuda \
+  2>&1 | tee logs/train_full_split.log
+
+# 2c) Evaluate
+"/home/nimit/IMUCoCo-2.0/.venv/bin/python" evaluate.py \
+  --checkpoint checkpoints/full_split_full/best_model.pt \
+  --data data/processed/full_test.npz \
+  --out_dir results/full_split_full \
+  --vote_k 5 \
+  --batch_size 256 \
+  2>&1 | tee logs/eval_full_split.log

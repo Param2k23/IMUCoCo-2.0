@@ -35,19 +35,24 @@ import torch
 import torch.nn.functional as F
 
 from sklearn.metrics import (
-    classification_report, confusion_matrix, accuracy_score,
+    classification_report,
+    confusion_matrix,
+    accuracy_score,
 )
 
 _HERE = os.path.dirname(os.path.abspath(__file__))
 sys.path.insert(0, _HERE)
 from model import build_model
 from smpl_regions import (
-    REGION_NAMES, NUM_REGIONS, SYMMETRY_PAIRS,
+    REGION_NAMES,
+    NUM_REGIONS,
+    SYMMETRY_PAIRS,
     spatial_error as compute_spatial_error,
 )
 
-logging.basicConfig(level=logging.INFO,
-                    format="%(asctime)s  %(levelname)-8s  %(message)s")
+logging.basicConfig(
+    level=logging.INFO, format="%(asctime)s  %(levelname)-8s  %(message)s"
+)
 log = logging.getLogger(__name__)
 
 
@@ -55,28 +60,37 @@ log = logging.getLogger(__name__)
 # Helpers
 # ---------------------------------------------------------------------------
 
+
 def load_model(ckpt_path: str, device: torch.device) -> torch.nn.Module:
     ckpt = torch.load(ckpt_path, map_location=device)
-    arch = ckpt.get('arch', 'resnet')
-    model = build_model(arch, n_classes=NUM_REGIONS).to(device)
-    model.load_state_dict(ckpt['model'])
+    arch = ckpt.get("arch", "resnet")
+    in_channels = int(ckpt.get("in_channels", 6))
+    model = build_model(arch, n_classes=NUM_REGIONS, in_channels=in_channels).to(device)
+    model.load_state_dict(ckpt["model"])
     model.eval()
-    fold = ckpt.get('fold', '?')
-    acc  = ckpt.get('val_acc', float('nan'))
-    log.info("Loaded checkpoint  arch=%s  fold=%s  saved_val_acc=%.4f", arch, fold, acc)
+    fold = ckpt.get("fold", "?")
+    acc = ckpt.get("val_acc", float("nan"))
+    log.info(
+        "Loaded checkpoint  arch=%s  in_channels=%d  fold=%s  saved_val_acc=%.4f",
+        arch,
+        in_channels,
+        fold,
+        acc,
+    )
     return model
 
 
-def load_test_data(data_path: str, test_fold_subj: int = None
-                   ) -> tuple[np.ndarray, np.ndarray]:
+def load_test_data(
+    data_path: str, test_fold_subj: int = None
+) -> tuple[np.ndarray, np.ndarray]:
     """
     Load X and y from .npz.  If test_fold_subj given, filter to that subject.
     Otherwise use all data.
     """
-    d    = np.load(data_path)
-    X    = d['X'].astype(np.float32)
-    y    = d['y'].astype(np.int64)
-    sids = d['subject_ids'].astype(np.int64)
+    d = np.load(data_path)
+    X = d["X"].astype(np.float32)
+    y = d["y"].astype(np.int64)
+    sids = d["subject_ids"].astype(np.int64)
 
     if test_fold_subj is not None:
         mask = sids == test_fold_subj
@@ -88,13 +102,14 @@ def load_test_data(data_path: str, test_fold_subj: int = None
 
 
 @torch.no_grad()
-def predict_all(model: torch.nn.Module, X: np.ndarray,
-                batch_size: int, device: torch.device) -> np.ndarray:
+def predict_all(
+    model: torch.nn.Module, X: np.ndarray, batch_size: int, device: torch.device
+) -> np.ndarray:
     """Return per-window predicted class labels."""
     preds = []
-    n     = len(X)
+    n = len(X)
     for start in range(0, n, batch_size):
-        xb = torch.from_numpy(X[start:start+batch_size]).to(device)
+        xb = torch.from_numpy(X[start : start + batch_size]).to(device)
         preds.append(model(xb).argmax(dim=1).cpu().numpy())
     return np.concatenate(preds)
 
@@ -102,6 +117,7 @@ def predict_all(model: torch.nn.Module, X: np.ndarray,
 # ---------------------------------------------------------------------------
 # Majority-vote filter
 # ---------------------------------------------------------------------------
+
 
 def majority_vote_stream(preds: np.ndarray, k: int = 5) -> np.ndarray:
     """
@@ -119,15 +135,15 @@ def majority_vote_stream(preds: np.ndarray, k: int = 5) -> np.ndarray:
     -------
     locked : (N,)  majority-voted predictions (-1 = not locked)
     """
-    locked     = np.full_like(preds, -1)
-    buf        = deque(maxlen=k)
-    threshold  = (k // 2) + 1   # majority
+    locked = np.full_like(preds, -1)
+    buf = deque(maxlen=k)
+    threshold = (k // 2) + 1  # majority
     for i, p in enumerate(preds):
         buf.append(int(p))
         if len(buf) == k:
             # Most common
             counts = np.bincount(np.array(buf), minlength=NUM_REGIONS)
-            best   = int(counts.argmax())
+            best = int(counts.argmax())
             if counts[best] >= threshold:
                 locked[i] = best
     return locked
@@ -137,28 +153,37 @@ def majority_vote_stream(preds: np.ndarray, k: int = 5) -> np.ndarray:
 # Confusion matrix visualisation
 # ---------------------------------------------------------------------------
 
-def plot_confusion_matrix(cm: np.ndarray, out_path: str,
-                          title: str = "Confusion Matrix") -> None:
-    short = [n.replace('_', '\n') for n in REGION_NAMES]
+
+def plot_confusion_matrix(
+    cm: np.ndarray, out_path: str, title: str = "Confusion Matrix"
+) -> None:
+    short = [n.replace("_", "\n") for n in REGION_NAMES]
     fig, ax = plt.subplots(figsize=(18, 16))
 
     # Normalise per row (true-label)
     cm_norm = cm.astype(float)
     row_sums = cm_norm.sum(axis=1, keepdims=True)
-    cm_norm  = np.divide(cm_norm, row_sums, where=row_sums != 0)
+    cm_norm = np.divide(cm_norm, row_sums, where=row_sums != 0)
 
     sns.heatmap(
-        cm_norm, ax=ax,
-        xticklabels=short, yticklabels=short,
-        cmap='Blues', vmin=0, vmax=1,
-        linewidths=0.4, linecolor='#e0e0e0',
-        annot=True, fmt='.2f', annot_kws={'size': 6},
-        cbar_kws={'label': 'Recall fraction'},
+        cm_norm,
+        ax=ax,
+        xticklabels=short,
+        yticklabels=short,
+        cmap="Blues",
+        vmin=0,
+        vmax=1,
+        linewidths=0.4,
+        linecolor="#e0e0e0",
+        annot=True,
+        fmt=".2f",
+        annot_kws={"size": 6},
+        cbar_kws={"label": "Recall fraction"},
     )
     ax.set_xlabel("Predicted Region", fontsize=12)
     ax.set_ylabel("True Region", fontsize=12)
-    ax.set_title(title, fontsize=14, fontweight='bold')
-    plt.xticks(fontsize=7, rotation=45, ha='right')
+    ax.set_title(title, fontsize=14, fontweight="bold")
+    plt.xticks(fontsize=7, rotation=45, ha="right")
     plt.yticks(fontsize=7, rotation=0)
     plt.tight_layout()
     plt.savefig(out_path, dpi=150)
@@ -170,6 +195,7 @@ def plot_confusion_matrix(cm: np.ndarray, out_path: str,
 # Symmetry confusion analysis
 # ---------------------------------------------------------------------------
 
+
 def symmetry_analysis(cm: np.ndarray) -> list[dict]:
     """
     For each (left, right) pair, compute the confusion rate
@@ -179,16 +205,18 @@ def symmetry_analysis(cm: np.ndarray) -> list[dict]:
     for l_id, r_id in SYMMETRY_PAIRS:
         l_total = cm[l_id].sum()
         r_total = cm[r_id].sum()
-        lr_conf = cm[l_id, r_id] / (l_total + 1e-8)   # left→right
-        rl_conf = cm[r_id, l_id] / (r_total + 1e-8)   # right→left
-        results.append({
-            'left':           REGION_NAMES[l_id],
-            'right':          REGION_NAMES[r_id],
-            'left→right_rate': float(lr_conf),
-            'right→left_rate': float(rl_conf),
-            'symmetric_confusion': float((lr_conf + rl_conf) / 2),
-        })
-    results.sort(key=lambda d: -d['symmetric_confusion'])
+        lr_conf = cm[l_id, r_id] / (l_total + 1e-8)  # left→right
+        rl_conf = cm[r_id, l_id] / (r_total + 1e-8)  # right→left
+        results.append(
+            {
+                "left": REGION_NAMES[l_id],
+                "right": REGION_NAMES[r_id],
+                "left→right_rate": float(lr_conf),
+                "right→left_rate": float(rl_conf),
+                "symmetric_confusion": float((lr_conf + rl_conf) / 2),
+            }
+        )
+    results.sort(key=lambda d: -d["symmetric_confusion"])
     return results
 
 
@@ -196,9 +224,10 @@ def symmetry_analysis(cm: np.ndarray) -> list[dict]:
 # Main evaluation
 # ---------------------------------------------------------------------------
 
+
 def run_evaluation(args) -> None:
     os.makedirs(args.out_dir, exist_ok=True)
-    device = torch.device('cuda' if torch.cuda.is_available() else 'cpu')
+    device = torch.device("cuda" if torch.cuda.is_available() else "cpu")
     log.info("Device: %s", device)
 
     # ── Load model & data ────────────────────────────────────────────────
@@ -223,10 +252,13 @@ def run_evaluation(args) -> None:
     if vote_mask.sum() > 0:
         voted_acc = float(accuracy_score(y_true[vote_mask], y_voted[vote_mask]))
         locked_pct = float(vote_mask.mean()) * 100
-        log.info("Majority-vote accuracy: %.4f  (locked %.1f%% of windows)",
-                 voted_acc, locked_pct)
+        log.info(
+            "Majority-vote accuracy: %.4f  (locked %.1f%% of windows)",
+            voted_acc,
+            locked_pct,
+        )
     else:
-        voted_acc  = 0.0
+        voted_acc = 0.0
         locked_pct = 0.0
         log.warning("No windows were locked by majority vote (k=%d)", args.vote_k)
 
@@ -234,7 +266,7 @@ def run_evaluation(args) -> None:
     cm = confusion_matrix(y_true, y_pred, labels=list(range(NUM_REGIONS)))
     plot_confusion_matrix(
         cm,
-        out_path=os.path.join(args.out_dir, 'confusion_matrix.png'),
+        out_path=os.path.join(args.out_dir, "confusion_matrix.png"),
         title=f"24-Region Sensor Location — Per-window Acc={per_window_acc:.3f}",
     )
 
@@ -242,44 +274,53 @@ def run_evaluation(args) -> None:
     sym_results = symmetry_analysis(cm)
     log.info("\n── Symmetry Confusion (top 5) ─────────────────────────────")
     for r in sym_results[:5]:
-        log.info("  %-14s ↔ %-14s  avg_rate=%.3f",
-                 r['left'], r['right'], r['symmetric_confusion'])
+        log.info(
+            "  %-14s ↔ %-14s  avg_rate=%.3f",
+            r["left"],
+            r["right"],
+            r["symmetric_confusion"],
+        )
 
     # ── Spatial error ────────────────────────────────────────────────────
-    sp_err = compute_spatial_error(y_pred.astype(np.int32),
-                                   y_true.astype(np.int32))
+    sp_err = compute_spatial_error(y_pred.astype(np.int32), y_true.astype(np.int32))
     log.info("\n── Spatial Error (mis-classified samples) ─────────────────")
-    log.info("  N wrong      : %d / %d  (%.1f%%)",
-             sp_err['n_wrong'], len(y_true),
-             100.0 * sp_err['n_wrong'] / max(1, len(y_true)))
-    log.info("  Mean error   : %.4f m", sp_err['mean_m'])
-    log.info("  Std error    : %.4f m", sp_err['std_m'])
+    log.info(
+        "  N wrong      : %d / %d  (%.1f%%)",
+        sp_err["n_wrong"],
+        len(y_true),
+        100.0 * sp_err["n_wrong"] / max(1, len(y_true)),
+    )
+    log.info("  Mean error   : %.4f m", sp_err["mean_m"])
+    log.info("  Std error    : %.4f m", sp_err["std_m"])
 
     # ── Classification report ────────────────────────────────────────────
     report = classification_report(
-        y_true, y_pred,
+        y_true,
+        y_pred,
         labels=list(range(NUM_REGIONS)),
         target_names=REGION_NAMES,
         zero_division=0,
     )
-    log.info("\n── Classification Report ───────────────────────────────────\n%s", report)
+    log.info(
+        "\n── Classification Report ───────────────────────────────────\n%s", report
+    )
 
     # ── Save summary JSON ────────────────────────────────────────────────
     summary = {
-        'per_window_accuracy':    per_window_acc,
-        'majority_vote_accuracy': voted_acc,
-        'vote_k':                 args.vote_k,
-        'locked_fraction':        locked_pct / 100,
-        'n_windows':              int(len(y_true)),
-        'spatial_error': {
-            'mean_m': sp_err['mean_m'],
-            'std_m':  sp_err['std_m'],
-            'n_wrong': sp_err['n_wrong'],
+        "per_window_accuracy": per_window_acc,
+        "majority_vote_accuracy": voted_acc,
+        "vote_k": args.vote_k,
+        "locked_fraction": locked_pct / 100,
+        "n_windows": int(len(y_true)),
+        "spatial_error": {
+            "mean_m": sp_err["mean_m"],
+            "std_m": sp_err["std_m"],
+            "n_wrong": sp_err["n_wrong"],
         },
-        'symmetry_confusion': sym_results,
+        "symmetry_confusion": sym_results,
     }
-    summ_path = os.path.join(args.out_dir, 'eval_summary.json')
-    with open(summ_path, 'w') as f:
+    summ_path = os.path.join(args.out_dir, "eval_summary.json")
+    with open(summ_path, "w") as f:
         json.dump(summary, f, indent=2)
     log.info("\n✓ Evaluation complete.  Summary saved → %s", summ_path)
 
@@ -287,6 +328,7 @@ def run_evaluation(args) -> None:
 # ---------------------------------------------------------------------------
 # Smoke self-test
 # ---------------------------------------------------------------------------
+
 
 def smoke_self_test(out_dir: str) -> None:
     """
@@ -296,8 +338,9 @@ def smoke_self_test(out_dir: str) -> None:
     preds = np.array([3, 3, 3, 3, 3, 7, 3, 3, 3, 3])
     voted = majority_vote_stream(preds, k=5)
     locked_vals = voted[voted >= 0]
-    assert all(v in (3, 7) for v in locked_vals), \
+    assert all(v in (3, 7) for v in locked_vals), (
         f"Unexpected locked values: {locked_vals}"
+    )
     log.info("Smoke self-test (majority vote): PASSED  locked=%s", locked_vals.tolist())
 
 
@@ -305,24 +348,27 @@ def smoke_self_test(out_dir: str) -> None:
 # CLI
 # ---------------------------------------------------------------------------
 
+
 def parse_args():
     p = argparse.ArgumentParser(description="Evaluate sensor-location classifier")
-    p.add_argument('--checkpoint',    required=True,
-                   help='Path to .pt checkpoint')
-    p.add_argument('--data',          required=True,
-                   help='Path to test .npz dataset')
-    p.add_argument('--out_dir',       default='C:/VS/SensorLoc/results')
-    p.add_argument('--vote_k',        type=int, default=5,
-                   help='Majority-vote window size')
-    p.add_argument('--batch_size',    type=int, default=256)
-    p.add_argument('--test_subject',  type=int, default=-1,
-                   help='If >= 0, filter data to this subject id only')
-    p.add_argument('--smoke',         action='store_true',
-                   help='Run internal self-tests and exit')
+    p.add_argument("--checkpoint", required=True, help="Path to .pt checkpoint")
+    p.add_argument("--data", required=True, help="Path to test .npz dataset")
+    p.add_argument("--out_dir", default="C:/VS/SensorLoc/results")
+    p.add_argument("--vote_k", type=int, default=5, help="Majority-vote window size")
+    p.add_argument("--batch_size", type=int, default=256)
+    p.add_argument(
+        "--test_subject",
+        type=int,
+        default=-1,
+        help="If >= 0, filter data to this subject id only",
+    )
+    p.add_argument(
+        "--smoke", action="store_true", help="Run internal self-tests and exit"
+    )
     return p.parse_args()
 
 
-if __name__ == '__main__':
+if __name__ == "__main__":
     args = parse_args()
     if args.smoke:
         smoke_self_test(args.out_dir)
