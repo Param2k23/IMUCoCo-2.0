@@ -1,0 +1,109 @@
+#!/usr/bin/env bash
+set -euo pipefail
+
+ROOT_DIR="$(cd "$(dirname "$0")" && pwd)"
+cd "$ROOT_DIR"
+
+if [[ -x "$ROOT_DIR/.venv/bin/python" ]]; then
+  PYTHON_BIN="$ROOT_DIR/.venv/bin/python"
+else
+  PYTHON_BIN="python3"
+fi
+
+echo "[smoke] repo: $ROOT_DIR"
+echo "[smoke] python: $PYTHON_BIN"
+
+mkdir -p logs checkpoints/smoke_single_subject results/smoke_single_subject data/processed
+
+echo "[smoke] cleaning previous smoke artifacts"
+rm -rf \
+  logs/preprocess_smoke_single_subject.log \
+  logs/train_smoke_single_subject.log \
+  logs/eval_smoke_selftest.log \
+  logs/eval_smoke_single_subject.log \
+  checkpoints/smoke_single_subject \
+  results/smoke_single_subject \
+  data/processed/smoke_single_train.npz \
+  data/processed/smoke_single_test.npz
+
+mkdir -p checkpoints/smoke_single_subject results/smoke_single_subject
+
+echo "[smoke] step 1/4: preprocess single-subject dataset"
+"$PYTHON_BIN" preprocess_vimu.py \
+  --mode single_subject \
+  --train_dir data/DIP_IMU_train_real_imu_position_only \
+  --test_dir data/DIP_IMU_test_real_imu_position_only \
+  --train_csv data/DIP_IMU_train_real_imu_position_only.csv \
+  --subject_id 1 \
+  --test_ratio 0.2 \
+  --seed 42 \
+  --out_train data/processed/smoke_single_train.npz \
+  --out_test data/processed/smoke_single_test.npz \
+  2>&1 | tee logs/preprocess_smoke_single_subject.log
+
+echo "[smoke] validating generated dataset shapes"
+"$PYTHON_BIN" - <<'PY'
+import numpy as np
+train = np.load("data/processed/smoke_single_train.npz")
+test = np.load("data/processed/smoke_single_test.npz")
+print("[smoke] train X shape:", train["X"].shape)
+print("[smoke] test  X shape:", test["X"].shape)
+assert train["X"].shape[1] == 9, "train channels must be 9"
+assert test["X"].shape[1] == 9, "test channels must be 9"
+PY
+
+echo "[smoke] step 2/4: train fixed-split smoke run"
+"$PYTHON_BIN" train.py \
+  --mode fixed_split \
+  --train_data data/processed/smoke_single_train.npz \
+  --val_data data/processed/smoke_single_test.npz \
+  --out_dir checkpoints/smoke_single_subject \
+  --arch resnet \
+  --epochs 5 \
+  --batch_size 64 \
+  --lr 1e-3 \
+  --patience 5 \
+  --smoke_test \
+  2>&1 | tee logs/train_smoke_single_subject.log
+
+echo "[smoke] checking checkpoint/stat artifacts"
+[[ -f checkpoints/smoke_single_subject/best_model.pt ]]
+[[ -f checkpoints/smoke_single_subject/normalization_stats.pt ]]
+
+echo "[smoke] step 3/4: evaluation smoke self-test"
+"$PYTHON_BIN" evaluate.py \
+  --checkpoint checkpoints/smoke_single_subject/best_model.pt \
+  --data data/processed/smoke_single_test.npz \
+  --smoke \
+  2>&1 | tee logs/eval_smoke_selftest.log
+
+echo "[smoke] step 4/4: full evaluation on smoke checkpoint"
+"$PYTHON_BIN" evaluate.py \
+  --checkpoint checkpoints/smoke_single_subject/best_model.pt \
+  --data data/processed/smoke_single_test.npz \
+  --out_dir results/smoke_single_subject \
+  --vote_k 5 \
+  --batch_size 256 \
+  2>&1 | tee logs/eval_smoke_single_subject.log
+
+echo "[smoke] summary"
+"$PYTHON_BIN" - <<'PY'
+import json
+from pathlib import Path
+
+train_results = Path("checkpoints/smoke_single_subject/fixed_split_results.txt")
+eval_summary = Path("results/smoke_single_subject/eval_summary.json")
+
+if train_results.exists():
+    print("[smoke] train results file:", train_results)
+    print(train_results.read_text().strip())
+
+if eval_summary.exists():
+    data = json.loads(eval_summary.read_text())
+    print("[smoke] eval summary file:", eval_summary)
+    print("[smoke] per_window_accuracy:", f"{data['per_window_accuracy']:.4f}")
+    print("[smoke] majority_vote_accuracy:", f"{data['majority_vote_accuracy']:.4f}")
+    print("[smoke] spatial_mean_m:", f"{data['spatial_error']['mean_m']:.4f}")
+
+print("[smoke] complete")
+PY

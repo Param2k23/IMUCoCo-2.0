@@ -1,11 +1,11 @@
 # UPGRADE.md
 
-This document captures the current pipeline state, why it is vulnerable, and a concrete upgrade path for IMUCoCo with DIP-style `vimu` data using 6 channels (`ax, ay, az, gx, gy, gz`; magnetometer dropped).
+This document captures the current pipeline state, why it is vulnerable, and a concrete upgrade path for IMUCoCo with DIP-style `vimu` data using 9 channels (`r6d_0..r6d_5, ax, ay, az`).
 
 ## Baseline-first scope (non-future)
 
 The first baseline training run should include only:
-- Data conversion from `.pt` to `.npz` using `vimu.vimu_joints` with 6 channels (`:6`) and 24-class labels.
+- Data conversion from `.pt` to `.npz` using `vimu.vimu_joints` with 9 channels (`:9`) and 24-class labels.
 - Two data pipelines:
   - single-subject experiment (ignore source split and create a train/test split from one subject)
   - full-dataset experiment (respect predefined train/test folders)
@@ -28,8 +28,8 @@ Everything else below marked `[FUTURE]` is not required for the first baseline r
 
 ### 1.2 Current model architecture
 - `model.py` default (`resnet`) = 1D ResNet classifier:
-  - input `(B, 6, T)`
-  - stem `Conv1d(6->64, k=7) + BN + ReLU`
+  - input `(B, 9, T)`
+  - stem `Conv1d(9->64, k=7) + BN + ReLU`
   - residual blocks:
     - block1 `64->64` stride 1
     - block2 `64->128` stride 2
@@ -65,7 +65,7 @@ Everything else below marked `[FUTURE]` is not required for the first baseline r
 
 ## 2) Data augmentations / transformations (detailed)
 
-Assume input is `(C=6, T)` per sample from `vimu_joints[:, region, :6]`.
+Assume input is `(C=9, T)` per sample from `vimu_joints[:, region, :9]`.
 
 For each method below:
 - **Current susceptibility**: why current code needs it
@@ -81,8 +81,8 @@ For each method below:
   - During training only, for each sample/channel:
     - `x[c] = x[c] + eps`, `eps ~ N(0, sigma_c^2)`
   - Start with:
+    - r6d channels `sigma=0.01 * std_r6d_channel`
     - accel channels `sigma=0.03 * std_acc_channel`
-    - gyro channels `sigma=0.02 * std_gyro_channel`
   - Keep deterministic by seeding torch RNG.
 - Expected improvement:
   - +0.5 to +2.0 points top-1 on held-out subjects (larger if overfitting baseline).
@@ -136,7 +136,7 @@ For each method below:
     - `x[c] = a_c * x[c] + b_c`
     - `a_c ~ Uniform(0.97, 1.03)`
     - `b_c ~ Uniform(-0.02*std_c, 0.02*std_c)`
-  - Use different ranges for accel/gyro if needed.
+  - Use different ranges for r6d/acc if needed.
 - Expected improvement:
   - +0.5 to +2.5 top-1 in cross-device transfer; may be neutral on in-domain clean test.
 - Why it should work here:
@@ -200,15 +200,15 @@ For each method below:
   1. Compare on long-segment validation.
   2. Analyze gains by motion tempo buckets (slow vs fast sequences).
 
-### 3.3 [FUTURE] Multi-branch accel/gyro stem (optional)
+### 3.3 [FUTURE] Multi-branch r6d/acc stem (optional)
 - Current susceptibility:
-  - Accel and gyro statistics differ; shared first conv may be suboptimal.
+  - Orientation and acceleration statistics differ; shared first conv may be suboptimal.
 - Implementation:
-  - Split input into accel(3ch) and gyro(3ch) stems, then concat and continue residual trunk.
+  - Split input into r6d(6ch) and acc(3ch) stems, then concat and continue residual trunk.
 - Expected improvement:
   - +0.2 to +1.0 top-1, sometimes better stability.
 - Why it should work here:
-  - Different physical units and spectral content benefit from early specialization.
+  - Orientation and acceleration channels have different semantics and dynamics, so early specialization can help.
 - Test to verify:
   1. Compare branch vs shared-stem using same params budget.
   2. Check improvement is consistent across seeds (>=3).
@@ -342,9 +342,9 @@ This is a pragmatic first upgrade with low engineering risk.
 
 ### Data
 - Input source: `vimu.vimu_joints` only.
-- Channels: first 6 dims only (`ax, ay, az, gx, gy, gz`), drop `mx,my,mz`.
+- Channels: all 9 dims (`r6d_0..r6d_5, ax, ay, az`).
 - Sample construction: one sample per `(segment, region)`.
-- Shape: `X (N,6,T)`, `y (N,)`, `subject_ids (N,)`.
+- Shape: `X (N,9,T)`, `y (N,)`, `subject_ids (N,)`.
 
 ### Train
 - Arch: `resnet` (current) + optional SE blocks if implemented.
@@ -362,7 +362,7 @@ This is a pragmatic first upgrade with low engineering risk.
 - Seed: `42`.
 
 ### Augmentations (train only)
-- Channel jitter: accel `0.03*std`, gyro `0.02*std`.
+- Channel jitter: r6d `0.01*std`, accel `0.03*std`.
 - Time masking: 1 to 2 masks, max width `0.1*T`.
 - Scale+bias perturb: scale `[0.97,1.03]`, bias `+-0.02*std`.
 - Time-warp: disabled initially; enable at `r in [0.9,1.1]` only if stable.

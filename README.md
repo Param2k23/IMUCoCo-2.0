@@ -1,13 +1,13 @@
 # Sensor Location Identification — IMUCoCo / SMPL
 
-Classifies which of the **24 IMUCoCo body regions** a wearable IMU is placed on, using only raw 3-axis accelerometer + 3-axis gyroscope data.
+Classifies which of the **24 IMUCoCo body regions** a wearable IMU is placed on, using 9-channel virtual IMU features: **6D orientation (r6d) + 3-axis acceleration**.
 
 ```
 c:\VS\SensorLoc\
 ├── smpl_regions.py       ← 24-region vertex map, centroids, spatial-error helper
-├── preprocess_amass.py   ← Extract labelled IMU windows from AMASS .npz files
+├── preprocess_vimu.py    ← Convert DIP-style vimu .pt segments to .npz
 ├── model.py              ← ResNet-1D + CNN-1D (PyTorch)
-├── train.py              ← LOSO cross-validation training loop
+├── train.py              ← LOSO and fixed-split training loop
 ├── evaluate.py           ← Confusion matrix, spatial error, majority-vote filter
 └── data/                 ← output dataset goes here
 ```
@@ -34,46 +34,68 @@ pip install torch scipy scikit-learn smplx seaborn matplotlib numpy
 
 ---
 
-## Quick Start (Smoke Test — no AMASS/SMPL needed)
+## Quick Start (vimu r6d+acc)
 
 ```powershell
 cd C:\VS\SensorLoc
 
-# 1. Generate synthetic dataset (480 windows, 20 per region)
-python preprocess_amass.py --smoke_test
+# 1) Convert single-subject experiment dataset (ignores source train/test split)
+python preprocess_vimu.py \
+  --mode single_subject \
+  --train_dir data/DIP_IMU_train_real_imu_position_only \
+  --test_dir data/DIP_IMU_test_real_imu_position_only \
+  --train_csv data/DIP_IMU_train_real_imu_position_only.csv \
+  --subject_id 1 \
+  --out_train data/processed/single_subject_train.npz \
+  --out_test data/processed/single_subject_test.npz
 
-# 2. Train one LOSO fold (5 epochs)
-python train.py --data data/smoke_dataset.npz --smoke_test --epochs 5
+# 2) Train fixed split
+python train.py \
+  --mode fixed_split \
+  --train_data data/processed/single_subject_train.npz \
+  --val_data data/processed/single_subject_test.npz \
+  --out_dir checkpoints/single_subject_full \
+  --arch resnet \
+  --epochs 80 \
+  --device cuda
 
-# 3. Evaluate
+# 3) Evaluate
 python evaluate.py \
-  --checkpoint checkpoints/best_model_fold0.pt \
-  --data data/smoke_dataset.npz
+  --checkpoint checkpoints/single_subject_full/best_model.pt \
+  --data data/processed/single_subject_test.npz \
+  --out_dir results/single_subject_full
 ```
 
 ---
 
-## Full AMASS Run
+## Full Predefined-Split Run
 
 ```powershell
-# Step 1 — Preprocess  (processes up to 5 sequences per AMASS sub-dataset)
-python preprocess_amass.py `
-  --amass_root C:/VS/TransPose/data/dataset_raw/AMASS `
-  --smpl_model C:/smpl/models/basicmodel_m_lbs_10_207_0_v1.0.0.pkl `
-  --output     C:/VS/SensorLoc/data/dataset.npz `
-  --max_seqs   5
+# Step 1 — Preprocess predefined train/test split
+python preprocess_vimu.py \
+  --mode predefined_split \
+  --train_dir data/DIP_IMU_train_real_imu_position_only \
+  --test_dir data/DIP_IMU_test_real_imu_position_only \
+  --train_csv data/DIP_IMU_train_real_imu_position_only.csv \
+  --out_train data/processed/full_train.npz \
+  --out_test data/processed/full_test.npz
 
-# Step 2 — Train (LOSO, 50 epochs, ResNet-1D)
-python train.py `
-  --data    C:/VS/SensorLoc/data/dataset.npz `
-  --arch    resnet `
-  --epochs  50
+# Step 2 — Train fixed split
+python train.py \
+  --mode fixed_split \
+  --train_data data/processed/full_train.npz \
+  --val_data data/processed/full_test.npz \
+  --out_dir checkpoints/full_split_full \
+  --arch resnet \
+  --epochs 80 \
+  --device cuda
 
-# Step 3 — Evaluate best fold
-python evaluate.py `
-  --checkpoint C:/VS/SensorLoc/checkpoints/best_model_fold0.pt `
-  --data       C:/VS/SensorLoc/data/dataset.npz `
-  --vote_k     5
+# Step 3 — Evaluate
+python evaluate.py \
+  --checkpoint checkpoints/full_split_full/best_model.pt \
+  --data data/processed/full_test.npz \
+  --out_dir results/full_split_full \
+  --vote_k 5
 ```
 
 ---
@@ -81,8 +103,8 @@ python evaluate.py `
 ## Model Architecture (ResNet-1D)
 
 ```
-Input      (B, 6, 120)        — 3-axis Accel + 3-axis Gyro
-Stem       Conv1d(6→64, k=7)  + BN + ReLU
+Input      (B, 9, T)          — 6D orientation (r6d) + 3-axis acceleration
+Stem       Conv1d(9→64, k=7)  + BN + ReLU
 Layer 1    ResBlock(64→64,  stride=1)
 Layer 2    ResBlock(64→128, stride=2)
 Layer 3    ResBlock(128→256, stride=2)
@@ -99,7 +121,10 @@ Output     (B, 24) logits
 
 | File | Description |
 |---|---|
-| `checkpoints/best_model_fold{k}.pt` | Best checkpoint per LOSO fold |
+| `checkpoints/best_model_fold{k}.pt` | Best **weights-only** checkpoint per LOSO fold |
+| `checkpoints/normalization_stats_fold{k}.pt` | Per-fold normalization stats (mean/std) + metadata |
+| `checkpoints/best_model.pt` | Best **weights-only** checkpoint for fixed-split mode |
+| `checkpoints/normalization_stats.pt` | Normalization stats for fixed-split mode |
 | `checkpoints/loso_results.txt` | Per-fold and mean accuracy |
 | `results/confusion_matrix.png` | Normalised 24×24 confusion matrix |
 | `results/eval_summary.json` | Accuracy, spatial error, symmetry confusion |

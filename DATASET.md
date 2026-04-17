@@ -45,14 +45,14 @@ Each `.pt` is a nested dictionary (PyTorch serialization) with this structure:
 ## Relationship to the 24-region classifier goal
 - Your classifier target is one of 24 body regions (`0..23`), matching `smpl_regions.py`.
 - Training/evaluation code in this repo (`train.py`, `evaluate.py`) expects a prebuilt `.npz` with:
-  - `X`: float32 `(N, 6, window)`
+  - `X`: float32 `(N, 9, window)`
   - `y`: int labels `(N,)` in `0..23`
   - `subject_ids`: int `(N,)`
 - Therefore, this dataset is a **source format** and must be converted to that `.npz` contract before using the current pipeline.
 
 ## Recommended conversion contract
 When building your custom-data adapter, produce:
-- `X[n]`: one IMU window with 6 channels (`ax, ay, az, gx, gy, gz`) and fixed `window` length.
+- `X[n]`: one IMU window with 9 channels (`r6d_0..r6d_5, ax, ay, az`) and fixed `window` length.
 - `y[n]`: region class id (`0..23`) for that window.
 - `subject_ids[n]`: subject/group id used for LOSO split.
 
@@ -61,10 +61,10 @@ When building your custom-data adapter, produce:
 import torch
 
 sample = torch.load("data/DIP_IMU_train_real_imu_position_only/s_01_03_seg0.pt", map_location="cpu")
-imu = sample["imu"]["imu"]          # (T, 17, 9)
-jpos = sample["joint"]["position"]   # (T, 24, 3)
+vimu = sample["vimu"]["vimu_joints"]  # (T, 24, 9) -> r6d(6) + acc(3)
+jpos = sample["joint"]["position"]    # (T, 24, 3)
 
-print(imu.shape, jpos.shape)
+print(vimu.shape, jpos.shape)
 ```
 
 ## Practical notes for this repo

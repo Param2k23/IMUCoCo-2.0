@@ -8,6 +8,7 @@ mkdir -p logs checkpoints/single_subject_full checkpoints/full_split_full result
 
 # ------------------------------------------------------------------
 # 1) Single-subject pipeline (ignore source train/test split)
+# Feature schema: vimu_joints -> 9 channels (r6d_0..r6d_5, ax, ay, az)
 # ------------------------------------------------------------------
 
 # 1a) Preprocess single-subject dataset (example: subject s_01)
@@ -22,6 +23,14 @@ mkdir -p logs checkpoints/single_subject_full checkpoints/full_split_full result
   --out_train data/processed/single_subject_train.npz \
   --out_test data/processed/single_subject_test.npz \
   2>&1 | tee logs/preprocess_single_subject_full.log
+
+# 1a.1) Sanity-check generated shape (must be N,9,T)
+"/home/nimit/IMUCoCo-2.0/.venv/bin/python" - <<'PY'
+import numpy as np
+d=np.load('data/processed/single_subject_train.npz')
+print('single_subject_train X shape:', d['X'].shape)
+assert d['X'].shape[1]==9
+PY
 
 # 1b) Train (fixed split, full run on CUDA)
 "/home/nimit/IMUCoCo-2.0/.venv/bin/python" train.py \
@@ -49,6 +58,7 @@ mkdir -p logs checkpoints/single_subject_full checkpoints/full_split_full result
 
 # ------------------------------------------------------------------
 # 2) Full-dataset predefined-split pipeline (respect train/test folders)
+# Feature schema: vimu_joints -> 9 channels (r6d_0..r6d_5, ax, ay, az)
 # ------------------------------------------------------------------
 
 # 2a) Preprocess predefined train/test split
@@ -60,6 +70,14 @@ mkdir -p logs checkpoints/single_subject_full checkpoints/full_split_full result
   --out_train data/processed/full_train.npz \
   --out_test data/processed/full_test.npz \
   2>&1 | tee logs/preprocess_full_split.log
+
+# 2a.1) Sanity-check generated shape (must be N,9,T)
+"/home/nimit/IMUCoCo-2.0/.venv/bin/python" - <<'PY'
+import numpy as np
+d=np.load('data/processed/full_train.npz')
+print('full_train X shape:', d['X'].shape)
+assert d['X'].shape[1]==9
+PY
 
 # 2b) Train (fixed split, full run on CUDA)
 "/home/nimit/IMUCoCo-2.0/.venv/bin/python" train.py \

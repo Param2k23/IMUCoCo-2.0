@@ -1,7 +1,8 @@
 """
 train.py
 ========
-Leave-One-Subject-Out (LOSO) training for the IMU sensor-location classifier.
+Training entrypoint for the IMU sensor-location classifier.
+Supports LOSO and fixed train/test split modes.
 
 Usage
 -----
@@ -34,6 +35,11 @@ _HERE = os.path.dirname(os.path.abspath(__file__))
 sys.path.insert(0, _HERE)
 from model import build_model
 from smpl_regions import REGION_NAMES, NUM_REGIONS
+from normalization import (
+    compute_channel_stats,
+    apply_channel_stats,
+    validate_input_array,
+)
 
 logging.basicConfig(
     level=logging.INFO, format="%(asctime)s  %(levelname)-8s  %(message)s"
@@ -51,6 +57,7 @@ def load_dataset(path: str) -> Tuple[np.ndarray, np.ndarray, np.ndarray]:
     X = data["X"].astype(np.float32)  # (N, C, T)
     y = data["y"].astype(np.int64)  # (N,)
     sids = data["subject_ids"].astype(np.int64)  # (N,)
+    validate_input_array(X)
     log.info(
         "Loaded %s  |  X=%s  classes=%d  subjects=%d",
         path,
@@ -62,10 +69,14 @@ def load_dataset(path: str) -> Tuple[np.ndarray, np.ndarray, np.ndarray]:
 
 
 def normalise(X_train: np.ndarray, X_val: np.ndarray):
-    """Z-score normalise per channel using training set statistics."""
-    mean = X_train.mean(axis=(0, 2), keepdims=True)  # (1, C, 1)
-    std = X_train.std(axis=(0, 2), keepdims=True) + 1e-8
-    return (X_train - mean) / std, (X_val - mean) / std, mean, std
+    """Z-score normalise per channel using shared helper."""
+    mean, std = compute_channel_stats(X_train)
+    return (
+        apply_channel_stats(X_train, mean, std),
+        apply_channel_stats(X_val, mean, std),
+        mean,
+        std,
+    )
 
 
 def _state_dict_to_save(model: nn.Module) -> dict:
@@ -74,6 +85,28 @@ def _state_dict_to_save(model: nn.Module) -> dict:
         model.module.state_dict()
         if isinstance(model, nn.DataParallel)
         else model.state_dict()
+    )
+
+
+def _save_norm_stats(
+    path: str,
+    mean: np.ndarray,
+    std: np.ndarray,
+    in_channels: int,
+    arch: str,
+    fold: int,
+    test_subj: int,
+) -> None:
+    torch.save(
+        {
+            "norm_mean": mean.astype(np.float32),
+            "norm_std": std.astype(np.float32),
+            "in_channels": int(in_channels),
+            "arch": arch,
+            "fold": int(fold),
+            "test_subj": int(test_subj),
+        },
+        path,
     )
 
 
@@ -205,7 +238,7 @@ def loso_train(
                 continue
 
             # Normalise
-            X_tr_n, X_val_n, _, _ = normalise(X_tr, X_val)
+            X_tr_n, X_val_n, mean, std = normalise(X_tr, X_val)
 
             tr_dl, val_dl = make_loaders(
                 X_tr_n,
@@ -228,6 +261,7 @@ def loso_train(
             best_val_acc = 0.0
             patience_ctr = 0
             ckpt_path = os.path.join(out_dir, f"best_model_fold{fold_idx}.pt")
+            stats_path = os.path.join(out_dir, f"normalization_stats_fold{fold_idx}.pt")
             t0 = time.time()
 
             for epoch in range(1, epochs + 1):
@@ -242,17 +276,17 @@ def loso_train(
                     best_val_acc = val_acc
                     patience_ctr = 0
                     torch.save(
-                        {
-                            "epoch": epoch,
-                            "model": _state_dict_to_save(model),
-                            "val_acc": val_acc,
-                            "val_loss": val_loss,
-                            "arch": arch,
-                            "in_channels": int(X.shape[1]),
-                            "fold": fold_idx,
-                            "test_subj": int(test_subj),
-                        },
+                        _state_dict_to_save(model),
                         ckpt_path,
+                    )
+                    _save_norm_stats(
+                        stats_path,
+                        mean,
+                        std,
+                        in_channels=int(X.shape[1]),
+                        arch=arch,
+                        fold=fold_idx,
+                        test_subj=int(test_subj),
                     )
                 else:
                     patience_ctr += 1
@@ -313,7 +347,7 @@ def fixed_split_train(
     os.makedirs(out_dir, exist_ok=True)
     results_path = os.path.join(out_dir, "fixed_split_results.txt")
 
-    X_tr_n, X_val_n, _, _ = normalise(X_tr, X_val)
+    X_tr_n, X_val_n, mean, std = normalise(X_tr, X_val)
     tr_dl, val_dl = make_loaders(
         X_tr_n,
         y_tr.astype(np.int64),
@@ -334,6 +368,7 @@ def fixed_split_train(
     best_val_acc = 0.0
     patience_ctr = 0
     ckpt_path = os.path.join(out_dir, "best_model.pt")
+    stats_path = os.path.join(out_dir, "normalization_stats.pt")
     t0 = time.time()
 
     for epoch in range(1, epochs + 1):
@@ -346,17 +381,17 @@ def fixed_split_train(
             best_val_acc = val_acc
             patience_ctr = 0
             torch.save(
-                {
-                    "epoch": epoch,
-                    "model": _state_dict_to_save(model),
-                    "val_acc": val_acc,
-                    "val_loss": val_loss,
-                    "arch": arch,
-                    "in_channels": int(X_tr.shape[1]),
-                    "fold": -1,
-                    "test_subj": -1,
-                },
+                _state_dict_to_save(model),
                 ckpt_path,
+            )
+            _save_norm_stats(
+                stats_path,
+                mean,
+                std,
+                in_channels=int(X_tr.shape[1]),
+                arch=arch,
+                fold=-1,
+                test_subj=-1,
             )
         else:
             patience_ctr += 1

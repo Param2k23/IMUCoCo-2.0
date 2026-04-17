@@ -43,6 +43,7 @@ from sklearn.metrics import (
 _HERE = os.path.dirname(os.path.abspath(__file__))
 sys.path.insert(0, _HERE)
 from model import build_model
+from normalization import apply_channel_stats, validate_input_array
 from smpl_regions import (
     REGION_NAMES,
     NUM_REGIONS,
@@ -61,23 +62,53 @@ log = logging.getLogger(__name__)
 # ---------------------------------------------------------------------------
 
 
-def load_model(ckpt_path: str, device: torch.device) -> torch.nn.Module:
-    ckpt = torch.load(ckpt_path, map_location=device)
-    arch = ckpt.get("arch", "resnet")
-    in_channels = int(ckpt.get("in_channels", 6))
+def _stats_path_for_checkpoint(ckpt_path: str) -> str:
+    base = os.path.basename(ckpt_path)
+    if base.startswith("best_model_fold") and base.endswith(".pt"):
+        suffix = base[len("best_model_") :]
+        return os.path.join(os.path.dirname(ckpt_path), f"normalization_stats_{suffix}")
+    return os.path.join(os.path.dirname(ckpt_path), "normalization_stats.pt")
+
+
+def load_model(
+    ckpt_path: str, device: torch.device
+) -> tuple[torch.nn.Module, int, np.ndarray, np.ndarray, int, str]:
+    state_dict = torch.load(ckpt_path, map_location=device, weights_only=True)
+    stats_path = _stats_path_for_checkpoint(ckpt_path)
+    if not os.path.isfile(stats_path):
+        raise ValueError(f"Missing normalization stats file: {stats_path}")
+    stats = torch.load(stats_path, map_location="cpu", weights_only=False)
+
+    arch = stats.get("arch", "resnet")
+    if "in_channels" not in stats:
+        raise ValueError("Normalization stats missing required key 'in_channels'.")
+    in_channels = int(stats["in_channels"])
+    if in_channels != 9:
+        raise ValueError(f"Expected 9-channel stats, got in_channels={in_channels}")
+    if "norm_mean" not in stats or "norm_std" not in stats:
+        raise ValueError(
+            "Normalization stats missing required keys 'norm_mean' and 'norm_std'."
+        )
+    mean = np.asarray(stats["norm_mean"], dtype=np.float32)
+    std = np.asarray(stats["norm_std"], dtype=np.float32)
+    if mean.shape != (1, in_channels, 1) or std.shape != (1, in_channels, 1):
+        raise ValueError(
+            f"Invalid normalization stat shapes. mean={mean.shape}, std={std.shape}, expected (1,{in_channels},1)."
+        )
+
     model = build_model(arch, n_classes=NUM_REGIONS, in_channels=in_channels).to(device)
-    model.load_state_dict(ckpt["model"])
+    model.load_state_dict(state_dict)
     model.eval()
-    fold = ckpt.get("fold", "?")
-    acc = ckpt.get("val_acc", float("nan"))
+    fold = stats.get("fold", "?")
+    test_subj = int(stats.get("test_subj", -1))
     log.info(
-        "Loaded checkpoint  arch=%s  in_channels=%d  fold=%s  saved_val_acc=%.4f",
+        "Loaded checkpoint  arch=%s  in_channels=%d  fold=%s  stats=%s",
         arch,
         in_channels,
         fold,
-        acc,
+        stats_path,
     )
-    return model
+    return model, in_channels, mean, std, test_subj, arch
 
 
 def load_test_data(
@@ -231,13 +262,24 @@ def run_evaluation(args) -> None:
     log.info("Device: %s", device)
 
     # ── Load model & data ────────────────────────────────────────────────
-    model = load_model(args.checkpoint, device)
+    model, ckpt_in_channels, norm_mean, norm_std, ckpt_test_subj, _ = load_model(
+        args.checkpoint, device
+    )
 
     # If checkpoint has a fold/subject, optionally filter to that subject
     ckpt_subj = None
     if args.test_subject >= 0:
         ckpt_subj = args.test_subject
+    elif ckpt_test_subj >= 0:
+        ckpt_subj = ckpt_test_subj
+        log.info("No --test_subject provided; using checkpoint test_subj=%d", ckpt_subj)
     X, y_true = load_test_data(args.data, ckpt_subj)
+    validate_input_array(X)
+    if X.shape[1] != ckpt_in_channels:
+        raise ValueError(
+            f"Input channel mismatch: dataset has {X.shape[1]} channels but checkpoint expects {ckpt_in_channels}."
+        )
+    X = apply_channel_stats(X, norm_mean, norm_std)
 
     # ── Per-window inference ────────────────────────────────────────────
     log.info("Running inference on %d windows …", len(X))

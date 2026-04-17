@@ -2,7 +2,11 @@
 preprocess_vimu.py
 ==================
 Convert DIP-style segmented .pt files (vimu_joints) into train/eval .npz files
-for IMUCoCo classification using 6 channels (ax, ay, az, gx, gy, gz).
+for IMUCoCo classification using 9 channels from vimu_joints.
+
+Important channel semantics in this repository:
+- vimu_joints has 9 features per region: [orientation_r6d(6), acceleration_xyz(3)]
+- The preprocessed X keeps all 9 channels (r6d + acc)
 
 Two modes:
 1) single_subject  -> build train/test split from one subject only
@@ -18,7 +22,7 @@ import os
 import random
 import re
 from dataclasses import dataclass
-from typing import Dict, Iterable, List, Optional, Sequence, Tuple
+from typing import Dict, List, Optional, Sequence, Tuple
 
 import numpy as np
 import torch
@@ -117,9 +121,11 @@ def extract_segment_tensor(file_path: str) -> np.ndarray:
     t, n_regions, n_feat = vimu.shape
     if n_regions != 24:
         raise ValueError(f"Expected 24 regions, got {n_regions} in {file_path}")
-    if n_feat < 6:
-        raise ValueError(f"Expected at least 6 features, got {n_feat} in {file_path}")
-    arr = vimu[:, :, :6].detach().cpu().numpy().astype(np.float32)  # (T, 24, 6)
+    if n_feat < 9:
+        raise ValueError(f"Expected at least 9 features, got {n_feat} in {file_path}")
+    arr = (
+        vimu[:, :, :9].detach().cpu().numpy().astype(np.float32)
+    )  # (T, 24, 9) = orientation_r6d + acceleration_xyz
     if not np.isfinite(arr).all():
         raise ValueError(f"Non-finite values found in {file_path}")
     if t <= 0:
@@ -135,10 +141,10 @@ def records_to_npz_arrays(
     sid_list: List[int] = []
 
     for rec in records:
-        seg = extract_segment_tensor(rec.file_path)  # (T, 24, 6)
+        seg = extract_segment_tensor(rec.file_path)  # (T, 24, 9)
         # one sample per region
         for region in range(24):
-            sample = np.transpose(seg[:, region, :], (1, 0))  # (6, T)
+            sample = np.transpose(seg[:, region, :], (1, 0))  # (9, T)
             X_list.append(sample)
             y_list.append(region)
             sid_list.append(rec.subject_id)
@@ -156,9 +162,9 @@ def validate_arrays(
     X: np.ndarray, y: np.ndarray, subject_ids: np.ndarray, name: str
 ) -> None:
     if X.ndim != 3:
-        raise ValueError(f"{name}: X must be 3D (N,6,T), got shape={X.shape}")
-    if X.shape[1] != 6:
-        raise ValueError(f"{name}: X second dim must be 6, got {X.shape[1]}")
+        raise ValueError(f"{name}: X must be 3D (N,9,T), got shape={X.shape}")
+    if X.shape[1] != 9:
+        raise ValueError(f"{name}: X second dim must be 9, got {X.shape[1]}")
     if y.ndim != 1 or subject_ids.ndim != 1:
         raise ValueError(f"{name}: y and subject_ids must be 1D")
     if len(X) != len(y) or len(y) != len(subject_ids):
@@ -279,7 +285,7 @@ def run_predefined_split(args: argparse.Namespace) -> None:
 
 def parse_args() -> argparse.Namespace:
     p = argparse.ArgumentParser(
-        description="Convert vimu .pt segments to train/eval .npz"
+        description="Convert vimu .pt segments to train/eval .npz using 9-channel r6d+acc"
     )
     p.add_argument(
         "--mode", choices=["single_subject", "predefined_split"], required=True

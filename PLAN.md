@@ -4,7 +4,7 @@
 - Build a Linux+CUDA-first training pipeline for research baselines.
 - Prioritize smoke tests and **custom dataset integration** (not AMASS-first).
 - Optimize for both classification accuracy and spatial error.
-- Use `vimu.vimu_joints` as input source and keep only 6 channels (`ax, ay, az, gx, gy, gz`), ignoring magnetometer.
+- Use `vimu.vimu_joints` as input source with 9 channels (`r6d_0..r6d_5, ax, ay, az`).
 
 ## Purpose questions raised (answered + still open)
 - Answered: immediate focus is baseline training quality, not deployment packaging.
@@ -18,8 +18,8 @@
 - Answered: CUDA policy: if CUDA is unavailable, allow CPU only when `--smoke_test`; otherwise raise an error.
 
 ## Next steps
-1. Implement data conversion pipeline for `.pt` segments -> `.npz` using `vimu.vimu_joints[:, :, :6]`:
-   - output contract: `X (N,6,T)` float32, `y (N,)` int `0..23`, `subject_ids (N,)` int.
+1. Implement data conversion pipeline for `.pt` segments -> `.npz` using `vimu.vimu_joints[:, :, :9]`:
+   - output contract: `X (N,9,T)` float32, `y (N,)` int `0..23`, `subject_ids (N,)` int.
    - one sample per `(segment, region)` where region index maps directly to class label.
 2. Add single-subject pipeline:
    - collect one subject's files from both source splits,
@@ -43,7 +43,7 @@
 
 ## Potential improvements
 - [FUTURE] Add augmentation stack (channel jitter, time masking, scale+bias perturbation, optional time-warp/mixup).
-- [FUTURE] Add model upgrades (SE attention blocks, temporal dilations, optional split accel/gyro stem).
+- [FUTURE] Add model upgrades (SE attention blocks, temporal dilations, optional split r6d/acc stem).
 - [FUTURE] Add training upgrades (class-weighted/focal loss, AdamW warmup-cosine, EMA, stronger reproducibility controls).
 - [FUTURE] Add richer evaluation outputs (top-k, per-class spatial error trends, calibration metrics ECE/NLL).
 - [FUTURE] Add split controls beyond LOSO where subject identity may be weak/noisy.
