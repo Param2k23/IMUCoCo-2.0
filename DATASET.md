@@ -17,7 +17,7 @@ Each row is one segment. Expected columns (nested dicts / structs are supported)
 - **`imu`**: optional dict with `imu` → real sensors `(T, 17, 9)`. Used only if `--merge_inputs blend_global_imu` (blended with a global mean over the 17 sensors; output remains 9 channels).
 - **`joint`**: may contain `asp_position` etc.; not required for the current classifier (labels are region indices `0..23`).
 
-Subject id for LOSO: use a column such as `subject_id`, `subject`, or `file_name` matching `s_<id>_...`. If none match, rows get `subject_id=0` (see logs).
+Subject id for LOSO: use a column such as `subject_id`, `subject`, or `file_name` matching `s_<id>_...`. Many HF Parquet exports only have `joint` / `imu` / `vimu`; then every row gets `subject_id=0` until you re-export with metadata or pass `--subject_column COL`. Fixed-split training still works; LOSO will not separate subjects.
 
 Use:
 `python preprocess_vimu.py --mode hf_parquet --parquet_dir data/raw_dip/data ...`

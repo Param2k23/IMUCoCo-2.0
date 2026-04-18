@@ -241,10 +241,67 @@ def merge_vimu_imu_channels(
 
 
 SUBJECT_RE_ROW = re.compile(r"s_(\d+)_", re.IGNORECASE)
+# Columns holding large motion tensors — skip for generic string scan (performance).
+_PARQUET_SKIP_SCAN_KEYS = frozenset({"vimu", "imu", "joint"})
 
 
-def parse_subject_from_parquet_row(row: Dict[str, Any], row_hint: str) -> int:
-    """Infer subject id from optional metadata columns or s_XX filename pattern."""
+def _subject_from_value(val: Any) -> Optional[int]:
+    """Parse subject id from a cell value (int, float, str, or shallow dict)."""
+    if val is None:
+        return None
+    if isinstance(val, (bool, np.bool_)):
+        return None
+    if isinstance(val, (int, np.integer)):
+        return int(val)
+    if isinstance(val, float) and np.isfinite(val) and val == int(val) and val >= 0:
+        return int(val)
+    if isinstance(val, str):
+        s = val.strip()
+        m = SUBJECT_RE_ROW.search(s)
+        if m:
+            return int(m.group(1))
+        if s.isdigit():
+            return int(s)
+        return None
+    if isinstance(val, dict):
+        for subk in (
+            "file_name",
+            "filename",
+            "path",
+            "name",
+            "segment_id",
+            "subject_id",
+            "subject",
+            "Subject",
+            "dataset_name",
+        ):
+            if subk in val:
+                got = _subject_from_value(val[subk])
+                if got is not None:
+                    return got
+        return None
+
+
+def try_parse_subject_from_row(
+    row: Dict[str, Any], subject_column: Optional[str]
+) -> Optional[int]:
+    """
+    Infer subject id from Parquet row metadata.
+    Many HF exports only store joint/imu/vimu — then this returns None (caller uses 0).
+    """
+    if subject_column:
+        if subject_column not in row:
+            raise KeyError(
+                f"--subject_column {subject_column!r} missing; "
+                f"row has: {sorted(row.keys())}"
+            )
+        got = _subject_from_value(row[subject_column])
+        if got is None:
+            raise ValueError(
+                f"Could not parse subject from column {subject_column!r}: {row[subject_column]!r}"
+            )
+        return got
+
     for key in (
         "subject_id",
         "subject",
@@ -253,22 +310,25 @@ def parse_subject_from_parquet_row(row: Dict[str, Any], row_hint: str) -> int:
         "filename",
         "segment_id",
         "name",
+        "path",
+        "filepath",
+        "pt_path",
+        "source",
+        "dataset_name",
     ):
         if key not in row or row[key] is None:
             continue
-        val = row[key]
-        if isinstance(val, (int, np.integer)):
-            return int(val)
-        s = str(val).strip()
-        m = SUBJECT_RE_ROW.search(s)
-        if m:
-            return int(m.group(1))
-        if s.isdigit():
-            return int(s)
-    log.warning(
-        "Could not parse subject id from row (%s); using subject_id=0", row_hint
-    )
-    return 0
+        got = _subject_from_value(row[key])
+        if got is not None:
+            return got
+
+    for key, val in row.items():
+        if key in _PARQUET_SKIP_SCAN_KEYS:
+            continue
+        got = _subject_from_value(val)
+        if got is not None:
+            return got
+    return None
 
 
 def npz_from_segments(
@@ -359,10 +419,17 @@ def load_parquet_segments(
     merge: str,
     imu_blend: float,
     subject_filter: Optional[int] = None,
-) -> List[NumpySegmentRecord]:
+    subject_column: Optional[str] = None,
+) -> Tuple[List[NumpySegmentRecord], int, int]:
+    """Returns (records, n_rows_missing_subject, n_rows_read)."""
     out: List[NumpySegmentRecord] = []
+    total_rows = 0
+    missing_subject = 0
+    logged_columns = False
+
     for row, path in iter_parquet_rows(paths):
-        hint = f"{path}#{len(out)}"
+        total_rows += 1
+        hint = f"{path}#row{total_rows - 1}"
         if "vimu" not in row:
             raise KeyError(f"Row missing 'vimu' column ({hint})")
         vimu = extract_vimu_numpy(row["vimu"])
@@ -378,12 +445,38 @@ def load_parquet_segments(
         if seg.shape[0] <= 0:
             raise ValueError(f"Empty segment ({hint})")
 
-        sid = parse_subject_from_parquet_row(row, hint)
+        sid_opt = try_parse_subject_from_row(row, subject_column)
+        if sid_opt is None:
+            missing_subject += 1
+            if not logged_columns:
+                log.info(
+                    "Parquet row columns (no subject parsed yet): %s",
+                    sorted(row.keys()),
+                )
+                logged_columns = True
+            sid = 0
+        else:
+            sid = sid_opt
+
         if subject_filter is not None and sid != subject_filter:
             continue
         out.append(NumpySegmentRecord(subject_id=sid, segment=seg))
 
-    return out
+    return out, missing_subject, total_rows
+
+
+def _warn_parquet_subject_fallback(
+    missing: int, total: int, subject_column: Optional[str]
+) -> None:
+    if missing and not subject_column:
+        log.warning(
+            "Assigned subject_id=0 to %d / %d Parquet rows (no subject metadata). "
+            "Fixed-split training and smoke tests are fine; LOSO / per-subject analysis "
+            "will not separate people. Re-export with file_name/subject_id, or set "
+            "--subject_column.",
+            missing,
+            total,
+        )
 
 
 def run_hf_parquet(args: argparse.Namespace) -> None:
@@ -399,19 +492,24 @@ def run_hf_parquet(args: argparse.Namespace) -> None:
     merge = args.merge_inputs
     imu_blend = float(args.imu_blend)
 
+    subj_col = (args.subject_column or "").strip() or None
+
     if args.hf_split == "stratified":
-        train_recs = load_parquet_segments(
+        train_recs, miss_tr, ntr = load_parquet_segments(
             train_paths,
             merge,
             imu_blend,
             subject_filter=args.subject_id,
+            subject_column=subj_col,
         )
-        test_recs = load_parquet_segments(
+        test_recs, miss_te, nte = load_parquet_segments(
             test_paths,
             merge,
             imu_blend,
             subject_filter=args.subject_id,
+            subject_column=subj_col,
         )
+        _warn_parquet_subject_fallback(miss_tr + miss_te, ntr + nte, subj_col)
         records = train_recs + test_recs
         if not records:
             raise ValueError(f"No parquet rows for subject {args.subject_id}")
@@ -433,12 +531,21 @@ def run_hf_parquet(args: argparse.Namespace) -> None:
         return
 
     # hf_split == "predefined"
-    train_recs = load_parquet_segments(
-        train_paths, merge, imu_blend, subject_filter=None
+    train_recs, miss_tr, ntr = load_parquet_segments(
+        train_paths,
+        merge,
+        imu_blend,
+        subject_filter=None,
+        subject_column=subj_col,
     )
-    test_recs = load_parquet_segments(
-        test_paths, merge, imu_blend, subject_filter=None
+    test_recs, miss_te, nte = load_parquet_segments(
+        test_paths,
+        merge,
+        imu_blend,
+        subject_filter=None,
+        subject_column=subj_col,
     )
+    _warn_parquet_subject_fallback(miss_tr + miss_te, ntr + nte, subj_col)
     if not train_recs:
         raise ValueError("No training segments loaded from Parquet")
     if not test_recs:
@@ -630,6 +737,13 @@ def parse_args() -> argparse.Namespace:
         type=float,
         default=0.0,
         help="When merge_inputs=blend_global_imu: weight of global IMU term in [0,1]",
+    )
+    p.add_argument(
+        "--subject_column",
+        default="",
+        help="hf_parquet: Parquet column name for subject id (int or s_XX string). "
+        "If unset, heuristics scan metadata columns; HF exports with only joint/imu/vimu "
+        "get subject_id=0 (see logs).",
     )
 
     p.add_argument(
