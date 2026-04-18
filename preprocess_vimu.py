@@ -8,21 +8,24 @@ Important channel semantics in this repository:
 - vimu_joints has 9 features per region: [orientation_r6d(6), acceleration_xyz(3)]
 - The preprocessed X keeps all 9 channels (r6d + acc)
 
-Two modes:
+Modes:
 1) single_subject  -> build train/test split from one subject only
 2) predefined_split -> build train/test using source train/test folders
+3) hf_parquet       -> Hugging Face Parquet export (e.g. spongie01/DIP-IMU-position-only):
+   nested dict columns joint / imu / vimu; train shards are merged automatically.
 """
 
 from __future__ import annotations
 
 import argparse
 import csv
+import glob
 import logging
 import os
 import random
 import re
 from dataclasses import dataclass
-from typing import Dict, List, Optional, Sequence, Tuple
+from typing import Any, Dict, Iterable, List, Optional, Sequence, Tuple
 
 import numpy as np
 import torch
@@ -40,6 +43,14 @@ SUBJECT_RE = re.compile(r"^s_(\d+)_")
 class SampleRecord:
     file_path: str
     subject_id: int
+
+
+@dataclass
+class NumpySegmentRecord:
+    """One motion segment as (T, 24, 9) float32 (already merged if applicable)."""
+
+    subject_id: int
+    segment: np.ndarray
 
 
 def parse_subject_id(file_name: str) -> int:
@@ -133,29 +144,314 @@ def extract_segment_tensor(file_path: str) -> np.ndarray:
     return arr
 
 
-def records_to_npz_arrays(
-    records: Sequence[SampleRecord],
+def _to_float32_array(obj: Any) -> np.ndarray:
+    if isinstance(obj, np.ndarray):
+        return np.asarray(obj, dtype=np.float32)
+    if torch.is_tensor(obj):
+        return obj.detach().cpu().numpy().astype(np.float32)
+    if isinstance(obj, (list, tuple)):
+        return np.asarray(obj, dtype=np.float32)
+    raise TypeError(f"Cannot convert to float32 array: {type(obj)}")
+
+
+def _unwrap_dict_value(d: Dict[str, Any], preferred_keys: Tuple[str, ...]) -> Any:
+    for k in preferred_keys:
+        if k in d:
+            return d[k]
+    if len(d) == 1:
+        return next(iter(d.values()))
+    raise KeyError(
+        f"Expected one of keys {preferred_keys}, got keys={list(d.keys())}"
+    )
+
+
+def _squeeze_leading_time(arr: np.ndarray, expected_last: int = 9) -> np.ndarray:
+    """Handle [[[...]]] or (1, T, 24, 9) from HF exports."""
+    a = arr
+    while a.ndim > 3 and a.shape[0] == 1:
+        a = np.squeeze(a, axis=0)
+    if a.ndim == 4 and a.shape[0] == 1:
+        a = np.squeeze(a, axis=0)
+    if a.ndim != 3:
+        raise ValueError(
+            f"Expected segment rank 3 (T,24,9) after squeeze, got shape={a.shape}"
+        )
+    t, n_regions, n_feat = a.shape
+    if n_regions != 24:
+        raise ValueError(f"Expected 24 regions, got {n_regions}")
+    if n_feat < 9:
+        raise ValueError(f"Expected at least 9 features, got {n_feat}")
+    return a[:, :, :9].astype(np.float32)
+
+
+def extract_vimu_numpy(vimu_field: Any) -> np.ndarray:
+    """Parse vimu column: dict with 'vimu' or 'vimu_joints', or raw array."""
+    if isinstance(vimu_field, dict):
+        inner = _unwrap_dict_value(
+            vimu_field, ("vimu_joints", "vimu", "data", "values")
+        )
+    else:
+        inner = vimu_field
+    arr = _to_float32_array(inner)
+    return _squeeze_leading_time(arr)
+
+
+def extract_imu_numpy(imu_field: Any) -> Optional[np.ndarray]:
+    """Parse imu column: dict with 'imu', shape (T, 17, 9). Optional."""
+    if imu_field is None:
+        return None
+    if isinstance(imu_field, dict):
+        inner = _unwrap_dict_value(imu_field, ("imu", "data", "values"))
+    else:
+        inner = imu_field
+    arr = _to_float32_array(inner)
+    while arr.ndim > 3 and arr.shape[0] == 1:
+        arr = np.squeeze(arr, axis=0)
+    if arr.ndim != 3:
+        raise ValueError(f"imu must be rank 3 (T,17,9), got shape={arr.shape}")
+    return arr.astype(np.float32)
+
+
+def merge_vimu_imu_channels(
+    vimu: np.ndarray,
+    imu: Optional[np.ndarray],
+    merge: str,
+    imu_blend: float,
+) -> np.ndarray:
+    """
+    Combine virtual IMU per region with real IMU stream. Output stays (T, 24, 9).
+
+    - vimu_only: use vimu only (same as legacy .pt pipeline).
+    - blend_global_imu: vimu * (1 - a) + (mean over 17 sensors, tiled to 24) * a.
+    """
+    if merge == "vimu_only":
+        return vimu
+    if merge == "blend_global_imu":
+        if imu is None:
+            log.warning("merge=blend_global_imu but imu missing; using vimu_only")
+            return vimu
+        if imu_blend <= 0.0:
+            return vimu
+        # imu: (T, 17, 9) -> (T, 1, 9) broadcast to (T, 24, 9)
+        pooled = imu.mean(axis=1, keepdims=True)
+        broadcast = np.broadcast_to(pooled, vimu.shape).astype(np.float32)
+        out = (1.0 - imu_blend) * vimu + imu_blend * broadcast
+        return out.astype(np.float32)
+    raise ValueError(f"Unknown merge mode: {merge}")
+
+
+SUBJECT_RE_ROW = re.compile(r"s_(\d+)_", re.IGNORECASE)
+
+
+def parse_subject_from_parquet_row(row: Dict[str, Any], row_hint: str) -> int:
+    """Infer subject id from optional metadata columns or s_XX filename pattern."""
+    for key in (
+        "subject_id",
+        "subject",
+        "Subject",
+        "file_name",
+        "filename",
+        "segment_id",
+        "name",
+    ):
+        if key not in row or row[key] is None:
+            continue
+        val = row[key]
+        if isinstance(val, (int, np.integer)):
+            return int(val)
+        s = str(val).strip()
+        m = SUBJECT_RE_ROW.search(s)
+        if m:
+            return int(m.group(1))
+        if s.isdigit():
+            return int(s)
+    log.warning(
+        "Could not parse subject id from row (%s); using subject_id=0", row_hint
+    )
+    return 0
+
+
+def npz_from_segments(
+    segments: Sequence[np.ndarray], subject_ids: Sequence[int]
 ) -> Tuple[np.ndarray, np.ndarray, np.ndarray]:
+    if len(segments) != len(subject_ids):
+        raise ValueError("segments and subject_ids length mismatch")
+
     X_list: List[np.ndarray] = []
     y_list: List[int] = []
     sid_list: List[int] = []
 
-    for rec in records:
-        seg = extract_segment_tensor(rec.file_path)  # (T, 24, 9)
-        # one sample per region
+    for seg, sid in zip(segments, subject_ids):
+        if seg.ndim != 3 or seg.shape[1] != 24 or seg.shape[2] != 9:
+            raise ValueError(
+                f"segment must be (T,24,9), got shape={getattr(seg, 'shape', None)}"
+            )
         for region in range(24):
             sample = np.transpose(seg[:, region, :], (1, 0))  # (9, T)
             X_list.append(sample)
             y_list.append(region)
-            sid_list.append(rec.subject_id)
+            sid_list.append(int(sid))
 
     if not X_list:
         raise ValueError("No samples collected for this split")
 
     X = np.stack(X_list).astype(np.float32)
     y = np.asarray(y_list, dtype=np.int64)
-    subject_ids = np.asarray(sid_list, dtype=np.int64)
-    return X, y, subject_ids
+    subject_ids_arr = np.asarray(sid_list, dtype=np.int64)
+    return X, y, subject_ids_arr
+
+
+def records_to_npz_arrays(
+    records: Sequence[SampleRecord],
+) -> Tuple[np.ndarray, np.ndarray, np.ndarray]:
+    segs = [extract_segment_tensor(r.file_path) for r in records]
+    sids = [r.subject_id for r in records]
+    return npz_from_segments(segs, sids)
+
+
+def numpy_segment_records_to_npz_arrays(
+    records: Sequence[NumpySegmentRecord],
+) -> Tuple[np.ndarray, np.ndarray, np.ndarray]:
+    segs = [r.segment for r in records]
+    sids = [r.subject_id for r in records]
+    return npz_from_segments(segs, sids)
+
+
+def _import_pyarrow():
+    try:
+        import pyarrow.parquet as pq
+    except ImportError as e:
+        raise ImportError(
+            "Reading Parquet requires pyarrow. Install with: pip install pyarrow"
+        ) from e
+    return pq
+
+
+def glob_parquet(parquet_dir: str, pattern: str) -> List[str]:
+    parquet_dir = os.path.normpath(parquet_dir)
+    if not os.path.isdir(parquet_dir):
+        raise FileNotFoundError(f"Parquet directory not found: {parquet_dir}")
+    paths = sorted(
+        glob.glob(os.path.join(parquet_dir, pattern)),
+        key=lambda p: os.path.basename(p),
+    )
+    if not paths:
+        raise FileNotFoundError(
+            f"No files matching {pattern!r} under {parquet_dir}"
+        )
+    return paths
+
+
+def iter_parquet_rows(paths: Sequence[str]) -> Iterable[Tuple[Dict[str, Any], str]]:
+    pq = _import_pyarrow()
+    for path in paths:
+        pf = pq.ParquetFile(path)
+        for batch in pf.iter_batches(batch_size=32):
+            names = batch.schema.names
+            cols = [batch.column(i).to_pylist() for i in range(batch.num_columns)]
+            for row_idx in range(batch.num_rows):
+                row = {names[i]: cols[i][row_idx] for i in range(len(names))}
+                yield row, path
+
+
+def load_parquet_segments(
+    paths: Sequence[str],
+    merge: str,
+    imu_blend: float,
+    subject_filter: Optional[int] = None,
+) -> List[NumpySegmentRecord]:
+    out: List[NumpySegmentRecord] = []
+    for row, path in iter_parquet_rows(paths):
+        hint = f"{path}#{len(out)}"
+        if "vimu" not in row:
+            raise KeyError(f"Row missing 'vimu' column ({hint})")
+        vimu = extract_vimu_numpy(row["vimu"])
+        imu = None
+        if row.get("imu") is not None:
+            try:
+                imu = extract_imu_numpy(row["imu"])
+            except (TypeError, ValueError) as e:
+                log.warning("Skipping imu parse for %s: %s", hint, e)
+        seg = merge_vimu_imu_channels(vimu, imu, merge, imu_blend)
+        if not np.isfinite(seg).all():
+            raise ValueError(f"Non-finite values in segment ({hint})")
+        if seg.shape[0] <= 0:
+            raise ValueError(f"Empty segment ({hint})")
+
+        sid = parse_subject_from_parquet_row(row, hint)
+        if subject_filter is not None and sid != subject_filter:
+            continue
+        out.append(NumpySegmentRecord(subject_id=sid, segment=seg))
+
+    return out
+
+
+def run_hf_parquet(args: argparse.Namespace) -> None:
+    train_paths = glob_parquet(args.parquet_dir, args.train_glob)
+    test_paths = glob_parquet(args.parquet_dir, args.test_glob)
+    log.info(
+        "Parquet: train files=%d test files=%d (dir=%s)",
+        len(train_paths),
+        len(test_paths),
+        args.parquet_dir,
+    )
+
+    merge = args.merge_inputs
+    imu_blend = float(args.imu_blend)
+
+    if args.hf_split == "stratified":
+        train_recs = load_parquet_segments(
+            train_paths,
+            merge,
+            imu_blend,
+            subject_filter=args.subject_id,
+        )
+        test_recs = load_parquet_segments(
+            test_paths,
+            merge,
+            imu_blend,
+            subject_filter=args.subject_id,
+        )
+        records = train_recs + test_recs
+        if not records:
+            raise ValueError(f"No parquet rows for subject {args.subject_id}")
+
+        X_all, y_all, sid_all = numpy_segment_records_to_npz_arrays(records)
+        validate_arrays(X_all, y_all, sid_all, "parquet_single_all")
+
+        tr_idx, te_idx = stratified_split_indices(
+            y_all, test_ratio=args.test_ratio, seed=args.seed
+        )
+        X_tr, y_tr, sid_tr = X_all[tr_idx], y_all[tr_idx], sid_all[tr_idx]
+        X_te, y_te, sid_te = X_all[te_idx], y_all[te_idx], sid_all[te_idx]
+
+        validate_arrays(X_tr, y_tr, sid_tr, "parquet_single_train")
+        validate_arrays(X_te, y_te, sid_te, "parquet_single_test")
+
+        save_npz(args.out_train, X_tr, y_tr, sid_tr, "HF parquet single-subject train")
+        save_npz(args.out_test, X_te, y_te, sid_te, "HF parquet single-subject test")
+        return
+
+    # hf_split == "predefined"
+    train_recs = load_parquet_segments(
+        train_paths, merge, imu_blend, subject_filter=None
+    )
+    test_recs = load_parquet_segments(
+        test_paths, merge, imu_blend, subject_filter=None
+    )
+    if not train_recs:
+        raise ValueError("No training segments loaded from Parquet")
+    if not test_recs:
+        raise ValueError("No test segments loaded from Parquet")
+
+    X_tr, y_tr, sid_tr = numpy_segment_records_to_npz_arrays(train_recs)
+    X_te, y_te, sid_te = numpy_segment_records_to_npz_arrays(test_recs)
+
+    validate_arrays(X_tr, y_tr, sid_tr, "parquet_predefined_train")
+    validate_arrays(X_te, y_te, sid_te, "parquet_predefined_test")
+
+    save_npz(args.out_train, X_tr, y_tr, sid_tr, "HF parquet train")
+    save_npz(args.out_test, X_te, y_te, sid_te, "HF parquet test")
 
 
 def validate_arrays(
@@ -288,7 +584,9 @@ def parse_args() -> argparse.Namespace:
         description="Convert vimu .pt segments to train/eval .npz using 9-channel r6d+acc"
     )
     p.add_argument(
-        "--mode", choices=["single_subject", "predefined_split"], required=True
+        "--mode",
+        choices=["single_subject", "predefined_split", "hf_parquet"],
+        required=True,
     )
 
     p.add_argument("--train_dir", default="data/DIP_IMU_train_real_imu_position_only")
@@ -299,10 +597,46 @@ def parse_args() -> argparse.Namespace:
     p.add_argument("--test_csv", default="")
 
     p.add_argument(
+        "--parquet_dir",
+        default="data/raw_dip/data",
+        help="Directory with train-*.parquet / test-*.parquet (HF snapshot_download layout)",
+    )
+    p.add_argument(
+        "--train_glob",
+        default="train-*.parquet",
+        help="Glob under parquet_dir for training shards (merged in order)",
+    )
+    p.add_argument(
+        "--test_glob",
+        default="test-*.parquet",
+        help="Glob under parquet_dir for the test split",
+    )
+    p.add_argument(
+        "--hf_split",
+        choices=["predefined", "stratified"],
+        default="predefined",
+        help="hf_parquet: predefined = train shards -> train npz, test shards -> test npz; "
+        "stratified = filter one subject then random stratified train/test split",
+    )
+    p.add_argument(
+        "--merge_inputs",
+        choices=["vimu_only", "blend_global_imu"],
+        default="vimu_only",
+        help="vimu_only: use nested vimu only (legacy). blend_global_imu: mix per-region vimu "
+        "with global mean of real IMU sensors (see --imu_blend)",
+    )
+    p.add_argument(
+        "--imu_blend",
+        type=float,
+        default=0.0,
+        help="When merge_inputs=blend_global_imu: weight of global IMU term in [0,1]",
+    )
+
+    p.add_argument(
         "--subject_id",
         type=int,
         default=1,
-        help="Used in single_subject mode (e.g. 1 for s_01)",
+        help="Used in single_subject mode (e.g. 1 for s_01); also hf_parquet + hf_split=stratified",
     )
     p.add_argument("--test_ratio", type=float, default=0.2)
     p.add_argument("--seed", type=int, default=42)
@@ -316,8 +650,10 @@ def main() -> None:
     args = parse_args()
     if args.mode == "single_subject":
         run_single_subject(args)
-    else:
+    elif args.mode == "predefined_split":
         run_predefined_split(args)
+    else:
+        run_hf_parquet(args)
 
 
 if __name__ == "__main__":

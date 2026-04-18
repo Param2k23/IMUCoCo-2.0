@@ -1,9 +1,26 @@
 # DATASET.md
 
 ## Dataset layout
+
+### Original local layout (`.pt` + CSV)
 - Data is organized by split (`train` / `test`) and variant (for example `*_real_imu_position_only`).
 - Both split folders are expected to contain similarly structured `.pt` segment files in the full dataset.
 - A companion CSV index (for example `DIP_IMU_train_real_imu_position_only.csv`) lists segment metadata.
+
+### Hugging Face Parquet export (e.g. `spongie01/DIP-IMU-position-only`)
+After `snapshot_download`, data often lives under `data/raw_dip/data/` as:
+- `train-00000-of-00004.parquet`, … (all `train-*.parquet` shards are **read and merged** in sorted order)
+- `test-00000-of-00001.parquet` (or any `test-*.parquet` matching `--test_glob`)
+
+Each row is one segment. Expected columns (nested dicts / structs are supported):
+- **`vimu`**: dict with `vimu` or `vimu_joints` → virtual IMU `(T, 24, 9)` (r6d + acc), same semantics as `.pt` `vimu_joints`.
+- **`imu`**: optional dict with `imu` → real sensors `(T, 17, 9)`. Used only if `--merge_inputs blend_global_imu` (blended with a global mean over the 17 sensors; output remains 9 channels).
+- **`joint`**: may contain `asp_position` etc.; not required for the current classifier (labels are region indices `0..23`).
+
+Subject id for LOSO: use a column such as `subject_id`, `subject`, or `file_name` matching `s_<id>_...`. If none match, rows get `subject_id=0` (see logs).
+
+Use:
+`python preprocess_vimu.py --mode hf_parquet --parquet_dir data/raw_dip/data ...`
 
 ## Segment file naming
 - Segment files follow: `s_<subject>_<sequence>_seg<id>.pt`.

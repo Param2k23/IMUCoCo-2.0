@@ -2,6 +2,7 @@
 # This file is everything except torch, so you can pick CPU vs CUDA from pytorch.org.
 
 numpy>=1.22
+pyarrow>=10.0
 scipy>=1.9
 scikit-learn>=1.2
 matplotlib>=3.6

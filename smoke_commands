@@ -6,6 +6,8 @@ cd "$ROOT_DIR"
 
 if [[ -x "$ROOT_DIR/.venv/bin/python" ]]; then
   PYTHON_BIN="$ROOT_DIR/.venv/bin/python"
+elif [[ -x "$ROOT_DIR/.venv/Scripts/python.exe" ]]; then
+  PYTHON_BIN="$ROOT_DIR/.venv/Scripts/python.exe"
 else
   PYTHON_BIN="python3"
 fi
@@ -105,5 +107,115 @@ if eval_summary.exists():
     print("[smoke] majority_vote_accuracy:", f"{data['majority_vote_accuracy']:.4f}")
     print("[smoke] spatial_mean_m:", f"{data['spatial_error']['mean_m']:.4f}")
 
-print("[smoke] complete")
+print("[smoke] .pt pipeline complete")
 PY
+
+# ---------------------------------------------------------------------------
+# HF Parquet snapshot smoke (preprocess_vimu.py --mode hf_parquet)
+# Runs when train-*.parquet and test-*.parquet exist under HF_PARQUET_DIR
+# (default: data/raw_dip/data). Override: HF_PARQUET_DIR=/path/to/data
+# ---------------------------------------------------------------------------
+PARQUET_DIR="${HF_PARQUET_DIR:-data/raw_dip/data}"
+if compgen -G "$PARQUET_DIR/train-*.parquet" > /dev/null 2>&1 \
+  && compgen -G "$PARQUET_DIR/test-*.parquet" > /dev/null 2>&1; then
+
+  mkdir -p logs checkpoints/smoke_hf_parquet results/smoke_hf_parquet data/processed
+
+  echo "[smoke-hf] cleaning previous HF parquet smoke artifacts"
+  rm -rf \
+    logs/preprocess_smoke_hf.log \
+    logs/train_smoke_hf.log \
+    logs/eval_smoke_hf_selftest.log \
+    logs/eval_smoke_hf.log \
+    checkpoints/smoke_hf_parquet \
+    results/smoke_hf_parquet \
+    data/processed/smoke_hf_train.npz \
+    data/processed/smoke_hf_test.npz
+
+  mkdir -p checkpoints/smoke_hf_parquet results/smoke_hf_parquet
+
+  echo "[smoke-hf] parquet dir: $PARQUET_DIR"
+  echo "[smoke-hf] step 1/4: preprocess hf_parquet (predefined split)"
+  "$PYTHON_BIN" preprocess_vimu.py \
+    --mode hf_parquet \
+    --parquet_dir "$PARQUET_DIR" \
+    --train_glob "train-*.parquet" \
+    --test_glob "test-*.parquet" \
+    --hf_split predefined \
+    --merge_inputs vimu_only \
+    --out_train data/processed/smoke_hf_train.npz \
+    --out_test data/processed/smoke_hf_test.npz \
+    2>&1 | tee logs/preprocess_smoke_hf.log
+
+  echo "[smoke-hf] validating generated dataset shapes"
+  "$PYTHON_BIN" - <<'PY'
+import numpy as np
+train = np.load("data/processed/smoke_hf_train.npz")
+test = np.load("data/processed/smoke_hf_test.npz")
+print("[smoke-hf] train X shape:", train["X"].shape)
+print("[smoke-hf] test  X shape:", test["X"].shape)
+assert train["X"].shape[1] == 9, "train channels must be 9"
+assert test["X"].shape[1] == 9, "test channels must be 9"
+PY
+
+  echo "[smoke-hf] step 2/4: train fixed-split smoke run"
+  "$PYTHON_BIN" train.py \
+    --mode fixed_split \
+    --train_data data/processed/smoke_hf_train.npz \
+    --val_data data/processed/smoke_hf_test.npz \
+    --out_dir checkpoints/smoke_hf_parquet \
+    --arch resnet \
+    --epochs 5 \
+    --batch_size 64 \
+    --lr 1e-3 \
+    --patience 5 \
+    --smoke_test \
+    2>&1 | tee logs/train_smoke_hf.log
+
+  echo "[smoke-hf] checking checkpoint/stat artifacts"
+  [[ -f checkpoints/smoke_hf_parquet/best_model.pt ]]
+  [[ -f checkpoints/smoke_hf_parquet/normalization_stats.pt ]]
+
+  echo "[smoke-hf] step 3/4: evaluation smoke self-test"
+  "$PYTHON_BIN" evaluate.py \
+    --checkpoint checkpoints/smoke_hf_parquet/best_model.pt \
+    --data data/processed/smoke_hf_test.npz \
+    --smoke \
+    2>&1 | tee logs/eval_smoke_hf_selftest.log
+
+  echo "[smoke-hf] step 4/4: full evaluation on smoke checkpoint"
+  "$PYTHON_BIN" evaluate.py \
+    --checkpoint checkpoints/smoke_hf_parquet/best_model.pt \
+    --data data/processed/smoke_hf_test.npz \
+    --out_dir results/smoke_hf_parquet \
+    --vote_k 5 \
+    --batch_size 256 \
+    2>&1 | tee logs/eval_smoke_hf.log
+
+  echo "[smoke-hf] summary"
+  "$PYTHON_BIN" - <<'PY'
+import json
+from pathlib import Path
+
+train_results = Path("checkpoints/smoke_hf_parquet/fixed_split_results.txt")
+eval_summary = Path("results/smoke_hf_parquet/eval_summary.json")
+
+if train_results.exists():
+    print("[smoke-hf] train results file:", train_results)
+    print(train_results.read_text().strip())
+
+if eval_summary.exists():
+    data = json.loads(eval_summary.read_text())
+    print("[smoke-hf] eval summary file:", eval_summary)
+    print("[smoke-hf] per_window_accuracy:", f"{data['per_window_accuracy']:.4f}")
+    print("[smoke-hf] majority_vote_accuracy:", f"{data['majority_vote_accuracy']:.4f}")
+    print("[smoke-hf] spatial_mean_m:", f"{data['spatial_error']['mean_m']:.4f}")
+
+print("[smoke-hf] HF parquet pipeline complete")
+PY
+else
+  echo "[smoke-hf] skipped: need both $PARQUET_DIR/train-*.parquet and $PARQUET_DIR/test-*.parquet"
+  echo "[smoke-hf] download snapshot (e.g. spongie01/DIP-IMU-position-only) into that tree, or set HF_PARQUET_DIR"
+fi
+
+echo "[smoke] all done"
