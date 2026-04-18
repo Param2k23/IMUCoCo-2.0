@@ -15,6 +15,28 @@ fi
 echo "[smoke] repo: $ROOT_DIR"
 echo "[smoke] python: $PYTHON_BIN"
 
+# SMOKE_MODE: both (default) = .pt smoke then HF if Parquet present;
+#             pt      = legacy .pt + CSV only;
+#             hf      = HF Parquet only (requires train/test Parquet shards; fails if missing).
+SMOKE_MODE="${SMOKE_MODE:-both}"
+case "$SMOKE_MODE" in
+  pt|hf|both) ;;
+  *)
+    echo "[smoke] SMOKE_MODE must be pt, hf, or both (got: $SMOKE_MODE)"
+    exit 1
+    ;;
+esac
+echo "[smoke] SMOKE_MODE=$SMOKE_MODE"
+
+run_pt=0
+run_hf=0
+case "$SMOKE_MODE" in
+  pt) run_pt=1 ;;
+  hf) run_hf=1 ;;
+  both) run_pt=1; run_hf=1 ;;
+esac
+
+if [[ "$run_pt" -eq 1 ]]; then
 mkdir -p logs checkpoints/smoke_single_subject results/smoke_single_subject data/processed
 
 echo "[smoke] cleaning previous smoke artifacts"
@@ -110,11 +132,14 @@ if eval_summary.exists():
 print("[smoke] .pt pipeline complete")
 PY
 
+fi
+
 # ---------------------------------------------------------------------------
 # HF Parquet snapshot smoke (preprocess_vimu.py --mode hf_parquet)
-# Runs when train-*.parquet and test-*.parquet exist under HF_PARQUET_DIR
-# (default: data/raw_dip/data). Override: HF_PARQUET_DIR=/path/to/data
+# With SMOKE_MODE=hf: always required. With both: runs when shards exist.
+# HF_PARQUET_DIR (default: data/raw_dip/data) overrides Parquet root.
 # ---------------------------------------------------------------------------
+if [[ "$run_hf" -eq 1 ]]; then
 PARQUET_DIR="${HF_PARQUET_DIR:-data/raw_dip/data}"
 if compgen -G "$PARQUET_DIR/train-*.parquet" > /dev/null 2>&1 \
   && compgen -G "$PARQUET_DIR/test-*.parquet" > /dev/null 2>&1; then
@@ -214,8 +239,12 @@ if eval_summary.exists():
 print("[smoke-hf] HF parquet pipeline complete")
 PY
 else
-  echo "[smoke-hf] skipped: need both $PARQUET_DIR/train-*.parquet and $PARQUET_DIR/test-*.parquet"
-  echo "[smoke-hf] download snapshot (e.g. spongie01/DIP-IMU-position-only) into that tree, or set HF_PARQUET_DIR"
+  echo "[smoke-hf] missing: need both $PARQUET_DIR/train-*.parquet and $PARQUET_DIR/test-*.parquet"
+  echo "[smoke-hf] download snapshot (e.g. spongie01/DIP-IMU-position-only) or set HF_PARQUET_DIR"
+  if [[ "$SMOKE_MODE" == "hf" ]]; then
+    exit 1
+  fi
+fi
 fi
 
 echo "[smoke] all done"

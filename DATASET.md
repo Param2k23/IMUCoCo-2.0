@@ -22,6 +22,8 @@ Subject id for LOSO: use a column such as `subject_id`, `subject`, or `file_name
 Use:
 `python preprocess_vimu.py --mode hf_parquet --parquet_dir data/raw_dip/data ...`
 
+Smoke (Linux): full HF-only pipeline without legacy `.pt` data — `SMOKE_MODE=hf ./smoke_commands` (optional `HF_PARQUET_DIR=...`). Default `SMOKE_MODE=both` runs `.pt` smoke first, then HF if Parquet shards exist.
+
 ## Segment file naming
 - Segment files follow: `s_<subject>_<sequence>_seg<id>.pt`.
 - Example: `s_01_03_seg12.pt`
