@@ -2,12 +2,13 @@
 #SBATCH --job-name=imu_hf_parquet_full
 #SBATCH --output=logs/slurm_%x_%j.out
 #SBATCH --error=logs/slurm_%x_%j.err
-#SBATCH --time=24:00:00
+#SBATCH --time=08:00:00
 #SBATCH --nodes=1
 #SBATCH --ntasks=1
 #SBATCH --cpus-per-task=8
 #SBATCH --mem=32G
 #SBATCH --gres=gpu:1
+#SBATCH -p h200x4
 
 set -euo pipefail
 
