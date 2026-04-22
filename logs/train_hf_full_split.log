@@ -1,0 +1,16 @@
+2026-04-22 03:26:35,985  INFO      Using device: cuda
+2026-04-22 03:26:36,833  INFO      Loaded data/processed/full_train.npz  |  X=(21240, 9, 300)  classes=24  subjects=8
+2026-04-22 03:26:36,854  INFO      Loaded data/processed/full_test.npz  |  X=(456, 9, 300)  classes=24  subjects=2
+2026-04-22 03:27:05,632  INFO        ep   1/80  tr_loss=1.7341  tr_acc=0.4153  val_loss=1.4678  val_acc=0.5044
+2026-04-22 03:27:07,768  INFO        ep   5/80  tr_loss=0.7955  tr_acc=0.6996  val_loss=1.0524  val_acc=0.6184
+2026-04-22 03:27:10,429  INFO        ep  10/80  tr_loss=0.5444  tr_acc=0.7923  val_loss=1.0910  val_acc=0.6447
+2026-04-22 03:27:13,084  INFO        ep  15/80  tr_loss=0.4244  tr_acc=0.8373  val_loss=0.9455  val_acc=0.7171
+2026-04-22 03:27:15,737  INFO        ep  20/80  tr_loss=0.3471  tr_acc=0.8647  val_loss=1.0042  val_acc=0.7171
+2026-04-22 03:27:18,387  INFO        ep  25/80  tr_loss=0.2854  tr_acc=0.8920  val_loss=1.3271  val_acc=0.6886
+2026-04-22 03:27:21,035  INFO        ep  30/80  tr_loss=0.2327  tr_acc=0.9125  val_loss=0.9620  val_acc=0.7061
+2026-04-22 03:27:21,035  INFO        Early stopping at epoch 30 (patience=15).
+2026-04-22 03:27:21,037  INFO      
+=== Fixed-Split Training Complete ===
+2026-04-22 03:27:21,037  INFO         best_val_acc: 0.7171
+2026-04-22 03:27:21,037  INFO         elapsed: 28.5s
+2026-04-22 03:27:21,037  INFO         Results -> checkpoints/full_split_full/fixed_split_results.txt

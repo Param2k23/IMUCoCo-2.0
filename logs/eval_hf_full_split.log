@@ -1,0 +1,54 @@
+2026-04-22 03:27:42,340  INFO      Device: cuda
+2026-04-22 03:27:42,628  INFO      Loaded checkpoint  arch=resnet  in_channels=9  fold=-1  stats=checkpoints/full_split_full/normalization_stats.pt
+2026-04-22 03:27:42,648  INFO      Using all 456 windows
+2026-04-22 03:27:42,650  INFO      Running inference on 456 windows …
+2026-04-22 03:27:42,801  INFO      Per-window accuracy: 0.7171
+2026-04-22 03:27:42,827  INFO      Majority-vote accuracy: 0.2857  (locked 4.6% of windows)
+2026-04-22 03:27:43,969  INFO      Confusion matrix saved → results/full_split_full/confusion_matrix.png
+2026-04-22 03:27:43,969  INFO      
+── Symmetry Confusion (top 5) ─────────────────────────────
+2026-04-22 03:27:43,969  INFO        l_hip          ↔ r_hip           avg_rate=0.053
+2026-04-22 03:27:43,970  INFO        l_shin         ↔ r_shin          avg_rate=0.053
+2026-04-22 03:27:43,970  INFO        l_hand         ↔ r_hand          avg_rate=0.053
+2026-04-22 03:27:43,970  INFO        l_collar       ↔ r_collar        avg_rate=0.026
+2026-04-22 03:27:43,970  INFO        l_thigh        ↔ r_thigh         avg_rate=0.000
+2026-04-22 03:27:43,977  INFO      
+── Spatial Error (mis-classified samples) ─────────────────
+2026-04-22 03:27:43,977  INFO        N wrong      : 129 / 456  (28.3%)
+2026-04-22 03:27:43,977  INFO        Mean error   : 0.4064 m
+2026-04-22 03:27:43,977  INFO        Std error    : 0.3131 m
+2026-04-22 03:27:43,992  INFO      
+── Classification Report ───────────────────────────────────
+              precision    recall  f1-score   support
+
+      pelvis       1.00      1.00      1.00        19
+       l_hip       1.00      0.79      0.88        19
+       r_hip       0.90      1.00      0.95        19
+ spine_lower       1.00      0.74      0.85        19
+     l_thigh       0.91      0.53      0.67        19
+     r_thigh       0.93      0.74      0.82        19
+   spine_mid       0.74      0.74      0.74        19
+      l_shin       0.82      0.74      0.78        19
+      r_shin       0.75      0.79      0.77        19
+ spine_upper       0.59      0.68      0.63        19
+      l_foot       0.68      0.89      0.77        19
+      r_foot       0.65      0.89      0.76        19
+        neck       0.54      0.37      0.44        19
+    l_collar       1.00      0.63      0.77        19
+    r_collar       0.82      0.95      0.88        19
+        head       0.41      0.74      0.53        19
+  l_shoulder       0.76      0.68      0.72        19
+  r_shoulder       0.86      1.00      0.93        19
+ l_upper_arm       0.44      0.42      0.43        19
+ r_upper_arm       0.70      0.74      0.72        19
+   l_forearm       0.35      0.42      0.38        19
+   r_forearm       0.82      0.47      0.60        19
+      l_hand       0.50      0.47      0.49        19
+      r_hand       0.68      0.79      0.73        19
+
+    accuracy                           0.72       456
+   macro avg       0.74      0.72      0.72       456
+weighted avg       0.74      0.72      0.72       456
+
+2026-04-22 03:27:43,993  INFO      
+✓ Evaluation complete.  Summary saved → results/full_split_full/eval_summary.json
