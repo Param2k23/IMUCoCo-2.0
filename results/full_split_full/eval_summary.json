@@ -1,0 +1,77 @@
+{
+  "per_window_accuracy": 0.7171052631578947,
+  "majority_vote_accuracy": 0.2857142857142857,
+  "vote_k": 5,
+  "locked_fraction": 0.046052631578947366,
+  "n_windows": 456,
+  "spatial_error": {
+    "mean_m": 0.40638604760169983,
+    "std_m": 0.31314048171043396,
+    "n_wrong": 129
+  },
+  "symmetry_confusion": [
+    {
+      "left": "l_hip",
+      "right": "r_hip",
+      "left\u2192right_rate": 0.10526315783933518,
+      "right\u2192left_rate": 0.0,
+      "symmetric_confusion": 0.05263157891966759
+    },
+    {
+      "left": "l_shin",
+      "right": "r_shin",
+      "left\u2192right_rate": 0.10526315783933518,
+      "right\u2192left_rate": 0.0,
+      "symmetric_confusion": 0.05263157891966759
+    },
+    {
+      "left": "l_hand",
+      "right": "r_hand",
+      "left\u2192right_rate": 0.05263157891966759,
+      "right\u2192left_rate": 0.05263157891966759,
+      "symmetric_confusion": 0.05263157891966759
+    },
+    {
+      "left": "l_collar",
+      "right": "r_collar",
+      "left\u2192right_rate": 0.05263157891966759,
+      "right\u2192left_rate": 0.0,
+      "symmetric_confusion": 0.026315789459833795
+    },
+    {
+      "left": "l_thigh",
+      "right": "r_thigh",
+      "left\u2192right_rate": 0.0,
+      "right\u2192left_rate": 0.0,
+      "symmetric_confusion": 0.0
+    },
+    {
+      "left": "l_foot",
+      "right": "r_foot",
+      "left\u2192right_rate": 0.0,
+      "right\u2192left_rate": 0.0,
+      "symmetric_confusion": 0.0
+    },
+    {
+      "left": "l_shoulder",
+      "right": "r_shoulder",
+      "left\u2192right_rate": 0.0,
+      "right\u2192left_rate": 0.0,
+      "symmetric_confusion": 0.0
+    },
+    {
+      "left": "l_upper_arm",
+      "right": "r_upper_arm",
+      "left\u2192right_rate": 0.0,
+      "right\u2192left_rate": 0.0,
+      "symmetric_confusion": 0.0
+    },
+    {
+      "left": "l_forearm",
+      "right": "r_forearm",
+      "left\u2192right_rate": 0.0,
+      "right\u2192left_rate": 0.0,
+      "symmetric_confusion": 0.0
+    }
+  ]
+}
