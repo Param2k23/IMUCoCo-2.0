@@ -195,6 +195,7 @@ def loso_train(
     epochs: int,
     batch_size: int,
     lr: float,
+    weight_decay: float,
     patience: int,
     out_dir: str,
     device: torch.device,
@@ -254,7 +255,9 @@ def loso_train(
             )
             model = wrap_data_parallel(model, multi_gpu, device)
             criterion = nn.CrossEntropyLoss()
-            optimiser = Adam(model.parameters(), lr=lr, weight_decay=1e-4)
+            optimiser = Adam(
+                model.parameters(), lr=lr, weight_decay=float(weight_decay)
+            )
             scheduler = CosineAnnealingLR(optimiser, T_max=epochs, eta_min=lr / 100)
 
             best_val_loss = float("inf")
@@ -339,6 +342,7 @@ def fixed_split_train(
     epochs: int,
     batch_size: int,
     lr: float,
+    weight_decay: float,
     patience: int,
     out_dir: str,
     device: torch.device,
@@ -361,7 +365,7 @@ def fixed_split_train(
     )
     model = wrap_data_parallel(model, multi_gpu, device)
     criterion = nn.CrossEntropyLoss()
-    optimiser = Adam(model.parameters(), lr=lr, weight_decay=1e-4)
+    optimiser = Adam(model.parameters(), lr=lr, weight_decay=float(weight_decay))
     scheduler = CosineAnnealingLR(optimiser, T_max=epochs, eta_min=lr / 100)
 
     best_val_loss = float("inf")
@@ -442,6 +446,7 @@ def parse_args():
     p.add_argument("--epochs", type=int, default=50)
     p.add_argument("--batch_size", type=int, default=64)
     p.add_argument("--lr", type=float, default=1e-3)
+    p.add_argument("--weight_decay", type=float, default=1e-4)
     p.add_argument("--patience", type=int, default=10)
     p.add_argument(
         "--smoke_test",
@@ -511,6 +516,7 @@ if __name__ == "__main__":
             epochs=args.epochs,
             batch_size=args.batch_size,
             lr=args.lr,
+            weight_decay=args.weight_decay,
             patience=args.patience,
             out_dir=args.out_dir,
             device=device,
@@ -534,6 +540,7 @@ if __name__ == "__main__":
             epochs=args.epochs,
             batch_size=args.batch_size,
             lr=args.lr,
+            weight_decay=args.weight_decay,
             patience=args.patience,
             out_dir=args.out_dir,
             device=device,
