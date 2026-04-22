@@ -167,6 +167,9 @@ if compgen -G "$PARQUET_DIR/train-*.parquet" > /dev/null 2>&1 \
     --train_glob "train-*.parquet" \
     --test_glob "test-*.parquet" \
     --hf_split predefined \
+    --window_length 300 \
+    --crop_mode center \
+    --pad_mode edge \
     --merge_inputs vimu_only \
     --out_train data/processed/smoke_hf_train.npz \
     --out_test data/processed/smoke_hf_test.npz \

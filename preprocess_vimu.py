@@ -332,22 +332,74 @@ def try_parse_subject_from_row(
 
 
 def npz_from_segments(
-    segments: Sequence[np.ndarray], subject_ids: Sequence[int]
+    segments: Sequence[np.ndarray],
+    subject_ids: Sequence[int],
+    window_length: int = 0,
+    crop_mode: str = "center",
+    pad_mode: str = "edge",
 ) -> Tuple[np.ndarray, np.ndarray, np.ndarray]:
     if len(segments) != len(subject_ids):
         raise ValueError("segments and subject_ids length mismatch")
 
+    lengths = [int(seg.shape[0]) for seg in segments]
+    if any(seg.ndim != 3 or seg.shape[1] != 24 or seg.shape[2] != 9 for seg in segments):
+        bad = next(seg for seg in segments if seg.ndim != 3 or seg.shape[1] != 24 or seg.shape[2] != 9)
+        raise ValueError(
+            f"segment must be (T,24,9), got shape={getattr(bad, 'shape', None)}"
+        )
+
+    if window_length > 0:
+        target_t = int(window_length)
+        if target_t <= 0:
+            raise ValueError("--window_length must be > 0 when provided")
+    else:
+        target_t = min(lengths)
+        if min(lengths) != max(lengths):
+            log.warning(
+                "Variable segment lengths detected (min=%d, max=%d). "
+                "Auto-aligning to min length T=%d by truncating longer segments. "
+                "For robust training, set --window_length (e.g. 300) to enable crop/pad.",
+                min(lengths),
+                max(lengths),
+                target_t,
+            )
+
+    def _normalize_length(seg: np.ndarray) -> np.ndarray:
+        t = int(seg.shape[0])
+        if t == target_t:
+            return seg
+        if t > target_t:
+            if crop_mode == "center":
+                start = (t - target_t) // 2
+            else:
+                start = 0
+            end = start + target_t
+            return seg[start:end, :, :]
+
+        pad_t = target_t - t
+        if pad_mode == "edge":
+            if t == 0:
+                raise ValueError("Cannot edge-pad empty segment")
+            pad_block = np.repeat(seg[-1:, :, :], pad_t, axis=0)
+        else:
+            pad_block = np.zeros((pad_t, seg.shape[1], seg.shape[2]), dtype=seg.dtype)
+        return np.concatenate([seg, pad_block], axis=0)
+
     X_list: List[np.ndarray] = []
     y_list: List[int] = []
     sid_list: List[int] = []
+    n_cropped = 0
+    n_padded = 0
 
     for seg, sid in zip(segments, subject_ids):
-        if seg.ndim != 3 or seg.shape[1] != 24 or seg.shape[2] != 9:
-            raise ValueError(
-                f"segment must be (T,24,9), got shape={getattr(seg, 'shape', None)}"
-            )
+        t = int(seg.shape[0])
+        if t > target_t:
+            n_cropped += 1
+        elif t < target_t:
+            n_padded += 1
+        seg_use = _normalize_length(seg)
         for region in range(24):
-            sample = np.transpose(seg[:, region, :], (1, 0))  # (9, T)
+            sample = np.transpose(seg_use[:, region, :], (1, 0))  # (9, T)
             X_list.append(sample)
             y_list.append(region)
             sid_list.append(int(sid))
@@ -358,23 +410,52 @@ def npz_from_segments(
     X = np.stack(X_list).astype(np.float32)
     y = np.asarray(y_list, dtype=np.int64)
     subject_ids_arr = np.asarray(sid_list, dtype=np.int64)
+    if n_cropped or n_padded:
+        log.info(
+            "Length normalization: target_T=%d cropped=%d padded=%d total_segments=%d "
+            "(crop_mode=%s pad_mode=%s)",
+            target_t,
+            n_cropped,
+            n_padded,
+            len(segments),
+            crop_mode,
+            pad_mode,
+        )
     return X, y, subject_ids_arr
 
 
 def records_to_npz_arrays(
     records: Sequence[SampleRecord],
+    window_length: int = 0,
+    crop_mode: str = "center",
+    pad_mode: str = "edge",
 ) -> Tuple[np.ndarray, np.ndarray, np.ndarray]:
     segs = [extract_segment_tensor(r.file_path) for r in records]
     sids = [r.subject_id for r in records]
-    return npz_from_segments(segs, sids)
+    return npz_from_segments(
+        segs,
+        sids,
+        window_length=window_length,
+        crop_mode=crop_mode,
+        pad_mode=pad_mode,
+    )
 
 
 def numpy_segment_records_to_npz_arrays(
     records: Sequence[NumpySegmentRecord],
+    window_length: int = 0,
+    crop_mode: str = "center",
+    pad_mode: str = "edge",
 ) -> Tuple[np.ndarray, np.ndarray, np.ndarray]:
     segs = [r.segment for r in records]
     sids = [r.subject_id for r in records]
-    return npz_from_segments(segs, sids)
+    return npz_from_segments(
+        segs,
+        sids,
+        window_length=window_length,
+        crop_mode=crop_mode,
+        pad_mode=pad_mode,
+    )
 
 
 def _import_pyarrow():
@@ -514,7 +595,12 @@ def run_hf_parquet(args: argparse.Namespace) -> None:
         if not records:
             raise ValueError(f"No parquet rows for subject {args.subject_id}")
 
-        X_all, y_all, sid_all = numpy_segment_records_to_npz_arrays(records)
+        X_all, y_all, sid_all = numpy_segment_records_to_npz_arrays(
+            records,
+            window_length=args.window_length,
+            crop_mode=args.crop_mode,
+            pad_mode=args.pad_mode,
+        )
         validate_arrays(X_all, y_all, sid_all, "parquet_single_all")
 
         tr_idx, te_idx = stratified_split_indices(
@@ -551,8 +637,18 @@ def run_hf_parquet(args: argparse.Namespace) -> None:
     if not test_recs:
         raise ValueError("No test segments loaded from Parquet")
 
-    X_tr, y_tr, sid_tr = numpy_segment_records_to_npz_arrays(train_recs)
-    X_te, y_te, sid_te = numpy_segment_records_to_npz_arrays(test_recs)
+    X_tr, y_tr, sid_tr = numpy_segment_records_to_npz_arrays(
+        train_recs,
+        window_length=args.window_length,
+        crop_mode=args.crop_mode,
+        pad_mode=args.pad_mode,
+    )
+    X_te, y_te, sid_te = numpy_segment_records_to_npz_arrays(
+        test_recs,
+        window_length=args.window_length,
+        crop_mode=args.crop_mode,
+        pad_mode=args.pad_mode,
+    )
 
     validate_arrays(X_tr, y_tr, sid_tr, "parquet_predefined_train")
     validate_arrays(X_te, y_te, sid_te, "parquet_predefined_test")
@@ -648,7 +744,12 @@ def run_single_subject(args: argparse.Namespace) -> None:
     if not records:
         raise ValueError(f"No records found for subject {args.subject_id}")
 
-    X_all, y_all, sid_all = records_to_npz_arrays(records)
+    X_all, y_all, sid_all = records_to_npz_arrays(
+        records,
+        window_length=args.window_length,
+        crop_mode=args.crop_mode,
+        pad_mode=args.pad_mode,
+    )
     validate_arrays(X_all, y_all, sid_all, "single_subject_all")
 
     tr_idx, te_idx = stratified_split_indices(
@@ -676,8 +777,18 @@ def run_predefined_split(args: argparse.Namespace) -> None:
     if not test_records:
         raise ValueError("No test records found for predefined split")
 
-    X_tr, y_tr, sid_tr = records_to_npz_arrays(train_records)
-    X_te, y_te, sid_te = records_to_npz_arrays(test_records)
+    X_tr, y_tr, sid_tr = records_to_npz_arrays(
+        train_records,
+        window_length=args.window_length,
+        crop_mode=args.crop_mode,
+        pad_mode=args.pad_mode,
+    )
+    X_te, y_te, sid_te = records_to_npz_arrays(
+        test_records,
+        window_length=args.window_length,
+        crop_mode=args.crop_mode,
+        pad_mode=args.pad_mode,
+    )
 
     validate_arrays(X_tr, y_tr, sid_tr, "predefined_train")
     validate_arrays(X_te, y_te, sid_te, "predefined_test")
@@ -754,6 +865,26 @@ def parse_args() -> argparse.Namespace:
     )
     p.add_argument("--test_ratio", type=float, default=0.2)
     p.add_argument("--seed", type=int, default=42)
+    p.add_argument(
+        "--window_length",
+        type=int,
+        default=0,
+        help="Target temporal length T for all segments before stacking. "
+        "0 = auto (use per-split minimum T and truncate longer segments).",
+    )
+    p.add_argument(
+        "--crop_mode",
+        choices=["center", "start"],
+        default="center",
+        help="When a segment is longer than --window_length, crop from center or start.",
+    )
+    p.add_argument(
+        "--pad_mode",
+        choices=["edge", "zero"],
+        default="edge",
+        help="When a segment is shorter than --window_length, pad by repeating last frame "
+        "(edge) or with zeros.",
+    )
 
     p.add_argument("--out_train", default="data/single_subject_train.npz")
     p.add_argument("--out_test", default="data/single_subject_test.npz")
