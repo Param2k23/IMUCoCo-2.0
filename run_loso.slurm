@@ -117,6 +117,12 @@ print("[loso] subject id range:", int(subjects.min()), "to", int(subjects.max())
 PY
 
 echo "[loso] step 3/4: train LOSO"
+if [[ "$SMOKE_TEST" == "1" ]]; then
+  # train.py smoke mode rewrites "...dataset.npz" -> "...smoke_dataset.npz".
+  # Create the expected file so smoke runs are filename-compatible.
+  cp data/processed/loso_dataset.npz data/processed/loso_smoke_dataset.npz
+fi
+
 TRAIN_ARGS=(
   --mode loso
   --data data/processed/loso_dataset.npz
