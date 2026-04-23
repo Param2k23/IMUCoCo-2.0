@@ -1,0 +1,6 @@
+trial,epochs,batch_size,lr,weight_decay,patience,max_folds,mean_loso_acc
+trial_a,80,128,1e-3,1e-4,15,5,0.7393
+trial_b,100,128,1e-3,3e-4,20,5,0.7800
+trial_c,80,64,1e-3,1e-4,15,5,0.7658
+trial_d,80,128,5e-4,1e-4,20,5,0.7575
+trial_e,120,128,7e-4,3e-4,25,5,0.7810
