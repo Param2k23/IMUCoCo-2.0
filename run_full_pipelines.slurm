@@ -8,7 +8,11 @@
 #SBATCH --cpus-per-task=8
 #SBATCH --mem=32G
 #SBATCH --gres=gpu:1
-#SBATCH -p h200x4
+#SBATCH -p b40x4
+
+# Path to the venv we verified with srun
+source /lustre/nvwulf/scratch/parapatel/imu_project/IMUCoCo-2.0/venv/bin/activate
+PYTHON_BIN=$(which python)
 
 set -euo pipefail
 

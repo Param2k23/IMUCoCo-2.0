@@ -1,0 +1,39 @@
+2026-04-22 16:28:42,369  INFO      Using device: cuda
+2026-04-22 16:28:43,665  INFO      Loaded data/processed/baseline_seed42_train.npz  |  X=(21240, 9, 300)  classes=24  subjects=8
+2026-04-22 16:28:43,695  INFO      Loaded data/processed/baseline_seed42_test.npz  |  X=(456, 9, 300)  classes=24  subjects=2
+/lustre/nvwulf/scratch/parapatel/imu_project/IMUCoCo-2.0/venv/lib/python3.9/site-packages/torch/cuda/__init__.py:230: UserWarning: 
+NVIDIA RTX PRO 6000 Blackwell Server Edition with CUDA capability sm_120 is not compatible with the current PyTorch installation.
+The current PyTorch install supports CUDA capabilities sm_50 sm_60 sm_70 sm_75 sm_80 sm_86 sm_90.
+If you want to use the NVIDIA RTX PRO 6000 Blackwell Server Edition GPU with PyTorch, please check the instructions at https://pytorch.org/get-started/locally/
+
+  warnings.warn(
+Traceback (most recent call last):
+  File "/lustre/nvwulf/scratch/parapatel/imu_project/IMUCoCo-2.0/train.py", line 534, in <module>
+    fixed_split_train(
+  File "/lustre/nvwulf/scratch/parapatel/imu_project/IMUCoCo-2.0/train.py", line 379, in fixed_split_train
+    tr_loss, tr_acc = train_one_epoch(model, tr_dl, criterion, optimiser, device)
+  File "/lustre/nvwulf/scratch/parapatel/imu_project/IMUCoCo-2.0/train.py", line 160, in train_one_epoch
+    logits = model(X_batch)
+  File "/lustre/nvwulf/scratch/parapatel/imu_project/IMUCoCo-2.0/venv/lib/python3.9/site-packages/torch/nn/modules/module.py", line 1553, in _wrapped_call_impl
+    return self._call_impl(*args, **kwargs)
+  File "/lustre/nvwulf/scratch/parapatel/imu_project/IMUCoCo-2.0/venv/lib/python3.9/site-packages/torch/nn/modules/module.py", line 1562, in _call_impl
+    return forward_call(*args, **kwargs)
+  File "/lustre/nvwulf/scratch/parapatel/imu_project/IMUCoCo-2.0/model.py", line 133, in forward
+    x = self.stem(x)  # (B, 64, T)
+  File "/lustre/nvwulf/scratch/parapatel/imu_project/IMUCoCo-2.0/venv/lib/python3.9/site-packages/torch/nn/modules/module.py", line 1553, in _wrapped_call_impl
+    return self._call_impl(*args, **kwargs)
+  File "/lustre/nvwulf/scratch/parapatel/imu_project/IMUCoCo-2.0/venv/lib/python3.9/site-packages/torch/nn/modules/module.py", line 1562, in _call_impl
+    return forward_call(*args, **kwargs)
+  File "/lustre/nvwulf/scratch/parapatel/imu_project/IMUCoCo-2.0/venv/lib/python3.9/site-packages/torch/nn/modules/container.py", line 219, in forward
+    input = module(input)
+  File "/lustre/nvwulf/scratch/parapatel/imu_project/IMUCoCo-2.0/venv/lib/python3.9/site-packages/torch/nn/modules/module.py", line 1553, in _wrapped_call_impl
+    return self._call_impl(*args, **kwargs)
+  File "/lustre/nvwulf/scratch/parapatel/imu_project/IMUCoCo-2.0/venv/lib/python3.9/site-packages/torch/nn/modules/module.py", line 1562, in _call_impl
+    return forward_call(*args, **kwargs)
+  File "/lustre/nvwulf/scratch/parapatel/imu_project/IMUCoCo-2.0/venv/lib/python3.9/site-packages/torch/nn/modules/batchnorm.py", line 156, in forward
+    self.num_batches_tracked.add_(1)  # type: ignore[has-type]
+RuntimeError: CUDA error: no kernel image is available for execution on the device
+CUDA kernel errors might be asynchronously reported at some other API call, so the stacktrace below might be incorrect.
+For debugging consider passing CUDA_LAUNCH_BLOCKING=1
+Compile with `TORCH_USE_CUDA_DSA` to enable device-side assertions.
+
