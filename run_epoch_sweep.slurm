@@ -90,7 +90,7 @@ if [[ "$SMOKE_TEST" == "1" ]]; then
 fi
 
 echo "============================================================"
-echo "[sweep] job         : $SLURM_JOB_ID  ($SLURM_JOB_NAME)"
+echo "[sweep] job         : ${SLURM_JOB_ID:-local}  (${SLURM_JOB_NAME:-bash_run})"
 echo "[sweep] repo        : $ROOT_DIR"
 echo "[sweep] python      : $PYTHON_BIN"
 echo "[sweep] parquet_dir : $PARQUET_DIR"
