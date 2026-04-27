@@ -252,6 +252,76 @@ def symmetry_analysis(cm: np.ndarray) -> list[dict]:
 
 
 # ---------------------------------------------------------------------------
+# Left-Right confusion breakdown
+# ---------------------------------------------------------------------------
+
+
+def left_right_confusion_analysis(
+    y_true: np.ndarray, y_pred: np.ndarray
+) -> dict:
+    """
+    Among misclassified windows, count how many are due to a pure left↔right
+    mirror swap (e.g. l_hand predicted as r_hand, or vice versa).
+
+    Returns
+    -------
+    dict with keys:
+      n_total_errors   : total misclassified windows
+      n_lr_errors      : errors that are a left↔right mirror swap
+      lr_error_pct     : n_lr_errors / n_total_errors  (0–100 %)
+      per_pair         : list of {pair, true→pred, count} sorted by count desc
+    """
+    # Build mirror map from SYMMETRY_PAIRS
+    mirror = {}
+    for l_id, r_id in SYMMETRY_PAIRS:
+        mirror[l_id] = r_id
+        mirror[r_id] = l_id
+
+    wrong_mask = y_pred != y_true
+    n_total_errors = int(wrong_mask.sum())
+
+    if n_total_errors == 0:
+        return {
+            "n_total_errors": 0,
+            "n_lr_errors": 0,
+            "lr_error_pct": 0.0,
+            "per_pair": [],
+        }
+
+    y_t_wrong = y_true[wrong_mask]
+    y_p_wrong = y_pred[wrong_mask]
+
+    # A left-right error: predicted class == mirror of true class
+    lr_mask = np.array(
+        [mirror.get(int(t), -1) == int(p) for t, p in zip(y_t_wrong, y_p_wrong)]
+    )
+    n_lr_errors = int(lr_mask.sum())
+
+    # Per symmetric-pair breakdown
+    per_pair = []
+    for l_id, r_id in SYMMETRY_PAIRS:
+        # l→r errors
+        lr_count = int(((y_t_wrong == l_id) & (y_p_wrong == r_id)).sum())
+        # r→l errors
+        rl_count = int(((y_t_wrong == r_id) & (y_p_wrong == l_id)).sum())
+        if lr_count + rl_count > 0:
+            per_pair.append({
+                "pair": f"{REGION_NAMES[l_id]} ↔ {REGION_NAMES[r_id]}",
+                f"{REGION_NAMES[l_id]}→{REGION_NAMES[r_id]}": lr_count,
+                f"{REGION_NAMES[r_id]}→{REGION_NAMES[l_id]}": rl_count,
+                "total_lr_errors": lr_count + rl_count,
+            })
+    per_pair.sort(key=lambda d: -d["total_lr_errors"])
+
+    return {
+        "n_total_errors": n_total_errors,
+        "n_lr_errors": n_lr_errors,
+        "lr_error_pct": round(100.0 * n_lr_errors / max(1, n_total_errors), 2),
+        "per_pair": per_pair,
+    }
+
+
+# ---------------------------------------------------------------------------
 # Main evaluation
 # ---------------------------------------------------------------------------
 
@@ -323,6 +393,29 @@ def run_evaluation(args) -> None:
             r["symmetric_confusion"],
         )
 
+    # ── Left-Right confusion breakdown ────────────────────────────────────
+    lr_analysis = left_right_confusion_analysis(y_true, y_pred)
+    log.info("\n── Left-Right Confusion Breakdown ─────────────────────────")
+    log.info(
+        "  Total errors      : %d / %d  (%.1f%%)",
+        lr_analysis["n_total_errors"],
+        len(y_true),
+        100.0 * lr_analysis["n_total_errors"] / max(1, len(y_true)),
+    )
+    log.info(
+        "  L↔R mirror errors : %d / %d errors  (%.1f%% of all errors)",
+        lr_analysis["n_lr_errors"],
+        lr_analysis["n_total_errors"],
+        lr_analysis["lr_error_pct"],
+    )
+    if lr_analysis["per_pair"]:
+        log.info("  Per symmetric pair (sorted by error count):")
+        for pp in lr_analysis["per_pair"]:
+            log.info("    %-36s  total=%d", pp["pair"], pp["total_lr_errors"])
+            for k, v in pp.items():
+                if k not in ("pair", "total_lr_errors"):
+                    log.info("      %-40s %d", k, v)
+
     # ── Spatial error ────────────────────────────────────────────────────
     sp_err = compute_spatial_error(y_pred.astype(np.int32), y_true.astype(np.int32))
     log.info("\n── Spatial Error (mis-classified samples) ─────────────────")
@@ -360,6 +453,12 @@ def run_evaluation(args) -> None:
             "n_wrong": sp_err["n_wrong"],
         },
         "symmetry_confusion": sym_results,
+        "left_right_confusion": {
+            "n_total_errors": lr_analysis["n_total_errors"],
+            "n_lr_errors": lr_analysis["n_lr_errors"],
+            "lr_error_pct_of_all_errors": lr_analysis["lr_error_pct"],
+            "per_pair": lr_analysis["per_pair"],
+        },
     }
     summ_path = os.path.join(args.out_dir, "eval_summary.json")
     with open(summ_path, "w") as f:

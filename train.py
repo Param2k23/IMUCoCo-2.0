@@ -27,6 +27,7 @@ from typing import List, Tuple, Optional
 import numpy as np
 import torch
 import torch.nn as nn
+import torch.nn.functional as F
 from torch.utils.data import DataLoader, TensorDataset
 from torch.optim import Adam
 from torch.optim.lr_scheduler import CosineAnnealingLR
@@ -34,12 +35,110 @@ from torch.optim.lr_scheduler import CosineAnnealingLR
 _HERE = os.path.dirname(os.path.abspath(__file__))
 sys.path.insert(0, _HERE)
 from model import build_model
-from smpl_regions import REGION_NAMES, NUM_REGIONS
+from smpl_regions import REGION_NAMES, NUM_REGIONS, SYMMETRY_PAIRS
 from normalization import (
     compute_channel_stats,
     apply_channel_stats,
     validate_input_array,
 )
+
+
+# ---------------------------------------------------------------------------
+# Custom loss: CrossEntropy + Left-Right Symmetry Penalty
+# ---------------------------------------------------------------------------
+
+
+class SensorLocLoss(nn.Module):
+    """
+    Domain-aware loss for IMU sensor-location classification.
+
+    = CrossEntropyLoss
+    + lr_weight * mean( P(mirror_class | x) )   for misclassified samples
+
+    Intuition
+    ---------
+    The model's biggest confuser is left vs right (e.g. l_hand → r_hand).
+    For every sample, we look up its *mirror* class (the symmetric body part
+    on the opposite side).  We add the model's softmax confidence in that
+    mirror class to the loss, penalising the model every time it "almost"
+    predicts the wrong side.  This forces the network to learn the subtle
+    acceleration/angular-velocity asymmetries that discriminate left from right.
+
+    Parameters
+    ----------
+    lr_weight : float
+        How strongly to penalise left-right confusion relative to CE.
+        0.0  → identical to plain CrossEntropyLoss
+        0.5  → moderate penalty (recommended starting point)
+        1.0  → equal weight to CE
+    label_smoothing : float
+        Passed through to nn.CrossEntropyLoss for regularisation.
+    """
+
+    def __init__(
+        self,
+        lr_weight: float = 0.5,
+        label_smoothing: float = 0.0,
+        num_classes: int = NUM_REGIONS,
+    ):
+        super().__init__()
+        self.lr_weight = lr_weight
+        self.ce = nn.CrossEntropyLoss(label_smoothing=label_smoothing)
+
+        # Build a mirror-class lookup tensor: mirror[c] = symmetric partner of c
+        # (or c itself if no symmetric pair exists, meaning midline regions).
+        mirror = list(range(num_classes))
+        for l_id, r_id in SYMMETRY_PAIRS:
+            mirror[l_id] = r_id
+            mirror[r_id] = l_id
+        # Register as a buffer so it moves with .to(device)
+        self.register_buffer(
+            "mirror_map", torch.tensor(mirror, dtype=torch.long)
+        )
+
+    def forward(
+        self, logits: torch.Tensor, targets: torch.Tensor
+    ) -> torch.Tensor:
+        """
+        Parameters
+        ----------
+        logits  : (B, C)  raw model output
+        targets : (B,)    ground-truth class indices
+        """
+        ce_loss = self.ce(logits, targets)
+
+        if self.lr_weight == 0.0:
+            return ce_loss
+
+        # For each sample's true class, find the mirror class
+        mirror_targets = self.mirror_map[targets]           # (B,)
+        # Only apply penalty where a true mirror exists (not midline)
+        has_mirror = mirror_targets != targets              # (B,) bool
+
+        if not has_mirror.any():
+            return ce_loss
+
+        probs = F.softmax(logits, dim=1)                    # (B, C)
+        # Gather the probability assigned to the mirror class
+        mirror_probs = probs[has_mirror].gather(
+            1, mirror_targets[has_mirror].unsqueeze(1)
+        ).squeeze(1)                                        # (M,)
+
+        lr_penalty = mirror_probs.mean()
+        return ce_loss + self.lr_weight * lr_penalty
+
+
+def build_criterion(loss_fn: str, lr_weight: float = 0.5) -> nn.Module:
+    """Factory: 'crossentropy' or 'custom'."""
+    if loss_fn == "custom":
+        log.info(
+            "Using SensorLocLoss  (CE + L/R symmetry penalty, lr_weight=%.2f)",
+            lr_weight,
+        )
+        return SensorLocLoss(lr_weight=lr_weight, label_smoothing=0.05)
+    else:
+        log.info("Using standard CrossEntropyLoss")
+        return nn.CrossEntropyLoss()
 
 logging.basicConfig(
     level=logging.INFO, format="%(asctime)s  %(levelname)-8s  %(message)s"
@@ -201,6 +300,8 @@ def loso_train(
     device: torch.device,
     multi_gpu: bool = False,
     max_folds: Optional[int] = None,
+    loss_fn: str = "crossentropy",
+    lr_weight: float = 0.5,
 ) -> List[float]:
     """
     Leave-One-Subject-Out cross-validation.
@@ -254,7 +355,7 @@ def loso_train(
                 device
             )
             model = wrap_data_parallel(model, multi_gpu, device)
-            criterion = nn.CrossEntropyLoss()
+            criterion = build_criterion(loss_fn, lr_weight).to(device)
             optimiser = Adam(
                 model.parameters(), lr=lr, weight_decay=float(weight_decay)
             )
@@ -347,6 +448,8 @@ def fixed_split_train(
     out_dir: str,
     device: torch.device,
     multi_gpu: bool = False,
+    loss_fn: str = "crossentropy",
+    lr_weight: float = 0.5,
 ) -> float:
     os.makedirs(out_dir, exist_ok=True)
     results_path = os.path.join(out_dir, "fixed_split_results.txt")
@@ -364,7 +467,7 @@ def fixed_split_train(
         device
     )
     model = wrap_data_parallel(model, multi_gpu, device)
-    criterion = nn.CrossEntropyLoss()
+    criterion = build_criterion(loss_fn, lr_weight).to(device)
     optimiser = Adam(model.parameters(), lr=lr, weight_decay=float(weight_decay))
     scheduler = CosineAnnealingLR(optimiser, T_max=epochs, eta_min=lr / 100)
 
@@ -443,11 +546,25 @@ def parse_args():
     p.add_argument("--val_data", default="")
     p.add_argument("--out_dir", default="C:/VS/SensorLoc/checkpoints")
     p.add_argument("--arch", default="resnet", choices=["resnet", "cnn"])
-    p.add_argument("--epochs", type=int, default=50)
+    p.add_argument("--epochs", type=int, default=100,
+                   help="Max training epochs per fold (default 100; was 50)")
     p.add_argument("--batch_size", type=int, default=64)
     p.add_argument("--lr", type=float, default=1e-3)
     p.add_argument("--weight_decay", type=float, default=1e-4)
-    p.add_argument("--patience", type=int, default=10)
+    p.add_argument("--patience", type=int, default=20,
+                   help="Early-stop patience in epochs (default 20; was 10)")
+    p.add_argument(
+        "--loss_fn",
+        default="custom",
+        choices=["crossentropy", "custom"],
+        help="'custom' = CE + left-right symmetry penalty; 'crossentropy' = standard CE",
+    )
+    p.add_argument(
+        "--lr_weight",
+        type=float,
+        default=0.5,
+        help="Weight for the left-right symmetry penalty in SensorLocLoss (default 0.5)",
+    )
     p.add_argument(
         "--smoke_test",
         action="store_true",
@@ -522,6 +639,8 @@ if __name__ == "__main__":
             device=device,
             multi_gpu=args.multi_gpu,
             max_folds=max_folds,
+            loss_fn=args.loss_fn,
+            lr_weight=args.lr_weight,
         )
     else:
         if not args.train_data or not args.val_data:
@@ -545,4 +664,6 @@ if __name__ == "__main__":
             out_dir=args.out_dir,
             device=device,
             multi_gpu=args.multi_gpu,
+            loss_fn=args.loss_fn,
+            lr_weight=args.lr_weight,
         )

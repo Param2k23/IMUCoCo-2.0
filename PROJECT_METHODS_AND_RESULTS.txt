@@ -1,0 +1,166 @@
+Sensor Location Classification - Methods and Results
+===================================================
+
+1) Problem
+----------
+Goal: predict IMU sensor location among 24 body regions from inertial time-series data.
+
+Classes:
+- 24 SMPL/IMUCoCo regions (label IDs 0..23)
+
+
+2) Data Type and Format
+-----------------------
+Source data:
+- Hugging Face parquet shards:
+  - train-*.parquet
+  - test-*.parquet
+
+Processed training/eval format (.npz):
+- X: shape (N, 9, T), float32
+- y: shape (N,), int64 labels in [0, 23]
+- subject_ids: shape (N,), int64
+
+Meaning of dimensions:
+- N = number of windows (samples)
+- 9 = channels per window:
+  - r6d_0..r6d_5 (6D orientation)
+  - ax, ay, az (acceleration)
+- T = number of timesteps per window
+  - in these runs, T = 300
+  - T=300 means 300 samples/frames per window (not 300 seconds)
+
+Subject metadata:
+- Parsed from parquet column: subject_id
+
+
+3) Data Used in Current Runs
+----------------------------
+Fixed-split run:
+- Train: X=(21240, 9, 300), classes=24, subjects=8
+- Test:  X=(456, 9, 300), classes=24, subjects=2
+
+LOSO run (merged train+test):
+- X=(21696, 9, 300)
+- y=(21696,), classes=24
+- subject_ids=(21696,), subjects=10 (IDs 1..10)
+
+
+4) Model and Training Method
+----------------------------
+Model:
+- ResNet1D (model.py)
+- Pipeline: Conv stem -> residual blocks -> global average pooling -> dropout -> FC(24)
+
+Training setup (train.py):
+- Loss: CrossEntropy
+- Optimizer: Adam
+- LR scheduler: CosineAnnealingLR
+- Early stopping with patience
+- Train-only normalization stats (saved and reused at eval)
+
+Evaluation (evaluate.py):
+- Per-window accuracy
+- Majority-vote accuracy (vote_k=5)
+- Confusion matrix
+- Symmetry confusion analysis
+- Spatial error (meters) for misclassified windows
+
+
+5) Methods Executed
+-------------------
+A) Baseline fixed split
+- preprocess_vimu.py --mode hf_parquet --hf_split predefined
+- train.py --mode fixed_split
+- evaluate.py on test split
+
+B) LOSO baseline
+- Merge processed train/test into single loso_dataset.npz
+- train.py --mode loso (subject-wise folds)
+
+C) LOSO tuning
+- Script: run_loso_tune.slurm
+- Hyperparameter sweep (first 5 folds):
+  - trial_a: epochs=80,  bs=128, lr=1e-3, wd=1e-4, pat=15
+  - trial_b: epochs=100, bs=128, lr=1e-3, wd=3e-4, pat=20
+  - trial_c: epochs=80,  bs=64,  lr=1e-3, wd=1e-4, pat=15
+  - trial_d: epochs=80,  bs=128, lr=5e-4, wd=1e-4, pat=20
+  - trial_e: epochs=120, bs=128, lr=7e-4, wd=3e-4, pat=25
+- Best trial selected from sweep leaderboard
+- Best config rerun on full LOSO (all folds)
+
+
+6) Results
+----------
+A) Fixed-split evaluation (logs/eval_hf_full_split.log)
+- Per-window accuracy: 0.7171
+- Majority-vote accuracy: 0.2857
+- Locked fraction: 4.6%
+- Wrong windows: 129 / 456 (28.3%)
+- Spatial error mean: 0.4064 m
+- Spatial error std:  0.3131 m
+
+
+B) LOSO baseline (checkpoints/loso_full/loso_results.txt)
+Per-fold Val_Acc:
+- subject 1:  0.7342
+- subject 2:  0.7241
+- subject 3:  0.7507
+- subject 4:  0.7512
+- subject 5:  0.8018
+- subject 6:  0.7061
+- subject 7:  0.8425
+- subject 8:  0.7877
+- subject 9:  0.7315
+- subject 10: 0.6875
+
+Mean LOSO Acc: 0.7517
+
+
+C) LOSO tuning sweep leaderboard (results/loso_tune/leaderboard.csv)
+- trial_a: 0.7393
+- trial_b: 0.7800
+- trial_c: 0.7658
+- trial_d: 0.7575
+- trial_e: 0.7810   <- best on sweep folds
+
+
+D) LOSO tuned final (checkpoints/loso_tune/best_final/loso_results.txt)
+Per-fold Val_Acc:
+- subject 1:  0.7913
+- subject 2:  0.7703
+- subject 3:  0.8417
+- subject 4:  0.7536
+- subject 5:  0.8402
+- subject 6:  0.6875
+- subject 7:  0.8421
+- subject 8:  0.7893
+- subject 9:  0.8009
+- subject 10: 0.7000
+
+Mean LOSO Acc: 0.7817
+
+
+E) Ablation summary (results/ablations/summary.csv)
+Per-window accuracy:
+- baseline_seed42 (vimu_only):        0.7719
+- baseline_seed43 (vimu_only):        0.7303
+- baseline_seed44 (vimu_only):        0.7654
+- fusion_blend01_seed42 (blend=0.1):  0.7807   <- best ablation row
+- fusion_blend02_seed42 (blend=0.2):  0.7434
+- reg_batch64_wd3e4_seed42:           0.7346
+
+
+7) Main Takeaways
+-----------------
+- Fixed split baseline: 0.7171 per-window accuracy.
+- LOSO baseline improved to 0.7517 mean across 10 subjects.
+- LOSO tuning improved further to 0.7817 mean LOSO.
+- Best sweep config used stronger regularization (wd=3e-4) and longer training.
+- Majority-vote metric is weak in current setup due to very low lock fraction.
+
+
+8) Immediate Next Step
+----------------------
+- Keep tuned LOSO config as default training setup.
+- Add per-fold evaluate.py outputs (confusion + spatial error per fold) for deeper error analysis.
