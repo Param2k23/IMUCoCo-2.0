@@ -1,0 +1,14 @@
+2026-04-27 06:17:58,186  WARNING   CUDA requested but unavailable; --smoke_test active, falling back to CPU.
+2026-04-27 06:17:58,186  INFO      Using device: cpu
+2026-04-27 06:17:59,502  INFO      Loaded data/processed/epoch_sweep_smoke_dataset.npz  |  X=(21696, 9, 300)  classes=24  subjects=10
+2026-04-27 06:17:59,514  INFO      
+── Fold 1/1  (test subject = 1) ──
+2026-04-27 06:18:01,017  INFO      Using SensorLocLoss  (CE + L/R symmetry penalty, lr_weight=0.50)
+2026-04-27 06:23:27,892  INFO        ep   1/5  tr_loss=1.9827  tr_acc=0.4012  val_loss=1.7401  val_acc=0.4501
+2026-04-27 06:42:57,609  INFO        ep   5/5  tr_loss=1.0992  tr_acc=0.7120  val_loss=1.3211  val_acc=0.6243
+2026-04-27 06:42:57,609  INFO        Fold 0 done  |  best_val_acc=0.6243  |  1482.2s
+2026-04-27 06:42:57,622  INFO      
+=== LOSO Complete ===
+2026-04-27 06:42:57,622  INFO         Per-fold:  ['0.6243']
+2026-04-27 06:42:57,622  INFO         Mean acc:  0.6243
+2026-04-27 06:42:57,622  INFO         Results → checkpoints/epoch_sweep/smoke_ep5/loso_results.txt

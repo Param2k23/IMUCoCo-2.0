@@ -1,0 +1,10 @@
+2026-04-27 09:29:31,166  INFO      Parquet: train files=4 test files=1 (dir=data/raw_dip/data)
+2026-04-27 09:32:46,901  INFO      Length normalization: target_T=300 cropped=19 padded=0 total_segments=19 (crop_mode=center pad_mode=edge)
+2026-04-27 09:32:53,257  INFO      Saved HF parquet train -> data/processed/epoch_sweep_train.npz
+2026-04-27 09:32:53,257  INFO        X shape=(21240, 9, 300) dtype=float32
+2026-04-27 09:32:53,277  INFO        y shape=(21240,) classes=24
+2026-04-27 09:32:53,277  INFO        subject_ids shape=(21240,) subjects=8
+2026-04-27 09:32:53,415  INFO      Saved HF parquet test -> data/processed/epoch_sweep_test.npz
+2026-04-27 09:32:53,415  INFO        X shape=(456, 9, 300) dtype=float32
+2026-04-27 09:32:53,415  INFO        y shape=(456,) classes=24
+2026-04-27 09:32:53,415  INFO        subject_ids shape=(456,) subjects=2
