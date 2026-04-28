@@ -1,0 +1,96 @@
+{
+  "per_window_accuracy": 0.8878205128205128,
+  "majority_vote_accuracy": 0.058823529411764705,
+  "vote_k": 5,
+  "locked_fraction": 0.006810897435897436,
+  "n_windows": 2496,
+  "spatial_error": {
+    "mean_m": 0.2826968729496002,
+    "std_m": 0.15325045585632324,
+    "n_wrong": 280
+  },
+  "symmetry_confusion": [
+    {
+      "left": "l_hip",
+      "right": "r_hip",
+      "left\u2192right_rate": 0.00961538461446006,
+      "right\u2192left_rate": 0.13461538460244082,
+      "symmetric_confusion": 0.07211538460845045
+    },
+    {
+      "left": "l_upper_arm",
+      "right": "r_upper_arm",
+      "left\u2192right_rate": 0.00961538461446006,
+      "right\u2192left_rate": 0.0,
+      "symmetric_confusion": 0.00480769230723003
+    },
+    {
+      "left": "l_thigh",
+      "right": "r_thigh",
+      "left\u2192right_rate": 0.0,
+      "right\u2192left_rate": 0.0,
+      "symmetric_confusion": 0.0
+    },
+    {
+      "left": "l_shin",
+      "right": "r_shin",
+      "left\u2192right_rate": 0.0,
+      "right\u2192left_rate": 0.0,
+      "symmetric_confusion": 0.0
+    },
+    {
+      "left": "l_foot",
+      "right": "r_foot",
+      "left\u2192right_rate": 0.0,
+      "right\u2192left_rate": 0.0,
+      "symmetric_confusion": 0.0
+    },
+    {
+      "left": "l_collar",
+      "right": "r_collar",
+      "left\u2192right_rate": 0.0,
+      "right\u2192left_rate": 0.0,
+      "symmetric_confusion": 0.0
+    },
+    {
+      "left": "l_shoulder",
+      "right": "r_shoulder",
+      "left\u2192right_rate": 0.0,
+      "right\u2192left_rate": 0.0,
+      "symmetric_confusion": 0.0
+    },
+    {
+      "left": "l_forearm",
+      "right": "r_forearm",
+      "left\u2192right_rate": 0.0,
+      "right\u2192left_rate": 0.0,
+      "symmetric_confusion": 0.0
+    },
+    {
+      "left": "l_hand",
+      "right": "r_hand",
+      "left\u2192right_rate": 0.0,
+      "right\u2192left_rate": 0.0,
+      "symmetric_confusion": 0.0
+    }
+  ],
+  "left_right_confusion": {
+    "n_total_errors": 280,
+    "n_lr_errors": 16,
+    "lr_error_pct_of_all_errors": 5.71,
+    "per_pair": [
+      {
+        "pair": "l_hip \u2194 r_hip",
+        "l_hip\u2192r_hip": 1,
+        "r_hip\u2192l_hip": 14,
+        "total_lr_errors": 15
+      },
+      {
+        "pair": "l_upper_arm \u2194 r_upper_arm",
+        "l_upper_arm\u2192r_upper_arm": 1,
+        "r_upper_arm\u2192l_upper_arm": 0,
+        "total_lr_errors": 1
+      }
+    ]
+  }
+}

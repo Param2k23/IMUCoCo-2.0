@@ -1,5 +1,7 @@
 trial,epochs,batch_size,lr,weight_decay,patience,loss_fn,lr_weight,max_folds,mean_loso_acc
-ep150_custom,150,128,1e-3,3e-4,25,custom,0.5,5,0.8146
-ep200_custom,200,128,1e-3,3e-4,33,custom,0.5,5,0.8409
-ep250_custom,250,128,1e-3,3e-4,41,custom,0.5,5,0.8274
-ep300_custom,300,128,1e-3,3e-4,50,custom,0.5,5,0.8446
+ep150_custom,150,128,1e-3,3e-4,25,custom,0.5,5,0.8246
+ep200_custom,200,128,1e-3,3e-4,33,custom,0.5,5,0.8254
+ep300_custom,300,128,1e-3,3e-4,50,custom,0.5,5,0.8487
+ep350_custom,350,128,1e-3,3e-4,58,custom,0.5,5,0.8416
+ep400_custom,400,128,1e-3,3e-4,60,custom,0.5,5,0.8619
+ep300_lrw1,300,128,1e-3,3e-4,50,custom,1.0,5,0.7996

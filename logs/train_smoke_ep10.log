@@ -1,14 +1,14 @@
-2026-04-27 06:43:03,632  WARNING   CUDA requested but unavailable; --smoke_test active, falling back to CPU.
-2026-04-27 06:43:03,632  INFO      Using device: cpu
-2026-04-27 06:43:04,946  INFO      Loaded data/processed/epoch_sweep_smoke_dataset.npz  |  X=(21696, 9, 300)  classes=24  subjects=10
-2026-04-27 06:43:04,948  INFO      
+2026-04-27 11:48:52,306  WARNING   CUDA requested but unavailable; --smoke_test active, falling back to CPU.
+2026-04-27 11:48:52,307  INFO      Using device: cpu
+2026-04-27 11:48:53,845  INFO      Loaded data/processed/epoch_sweep_smoke_dataset.npz  |  X=(21696, 9, 300)  classes=24  subjects=10
+2026-04-27 11:48:53,847  INFO      
 ── Fold 1/1  (test subject = 1) ──
-2026-04-27 06:43:05,339  INFO      Using SensorLocLoss  (CE + L/R symmetry penalty, lr_weight=0.50)
-2026-04-27 06:47:56,788  INFO        ep   1/5  tr_loss=1.9687  tr_acc=0.4074  val_loss=1.6816  val_acc=0.4810
-2026-04-27 07:07:00,514  INFO        ep   5/5  tr_loss=1.0644  tr_acc=0.7266  val_loss=1.2999  val_acc=0.6365
-2026-04-27 07:07:00,514  INFO        Fold 0 done  |  best_val_acc=0.6365  |  1434.2s
-2026-04-27 07:07:00,515  INFO      
+2026-04-27 11:48:54,820  INFO      Using SensorLocLoss  (CE + L/R symmetry penalty, lr_weight=0.50)
+2026-04-27 11:54:17,608  INFO        ep   1/5  tr_loss=1.9912  tr_acc=0.3987  val_loss=1.7350  val_acc=0.4601
+2026-04-27 12:12:43,032  INFO        ep   5/5  tr_loss=1.0730  tr_acc=0.7210  val_loss=1.3177  val_acc=0.6369
+2026-04-27 12:12:43,033  INFO        Fold 0 done  |  best_val_acc=0.6369  |  1426.9s
+2026-04-27 12:12:43,033  INFO      
 === LOSO Complete ===
-2026-04-27 07:07:00,515  INFO         Per-fold:  ['0.6365']
-2026-04-27 07:07:00,515  INFO         Mean acc:  0.6365
-2026-04-27 07:07:00,515  INFO         Results → checkpoints/epoch_sweep/smoke_ep10/loso_results.txt
+2026-04-27 12:12:43,033  INFO         Per-fold:  ['0.6369']
+2026-04-27 12:12:43,033  INFO         Mean acc:  0.6369
+2026-04-27 12:12:43,033  INFO         Results → checkpoints/epoch_sweep/smoke_ep10/loso_results.txt

@@ -1,0 +1,102 @@
+{
+  "per_window_accuracy": 0.8325825825825826,
+  "majority_vote_accuracy": 0.36363636363636365,
+  "vote_k": 5,
+  "locked_fraction": 0.02064564564564565,
+  "n_windows": 2664,
+  "spatial_error": {
+    "mean_m": 0.3233080804347992,
+    "std_m": 0.22718793153762817,
+    "n_wrong": 446
+  },
+  "symmetry_confusion": [
+    {
+      "left": "l_thigh",
+      "right": "r_thigh",
+      "left\u2192right_rate": 0.009009009008197387,
+      "right\u2192left_rate": 0.21621621619673728,
+      "symmetric_confusion": 0.11261261260246734
+    },
+    {
+      "left": "l_hip",
+      "right": "r_hip",
+      "left\u2192right_rate": 0.018018018016394775,
+      "right\u2192left_rate": 0.18918918917214514,
+      "symmetric_confusion": 0.10360360359426996
+    },
+    {
+      "left": "l_forearm",
+      "right": "r_forearm",
+      "left\u2192right_rate": 0.0,
+      "right\u2192left_rate": 0.018018018016394775,
+      "symmetric_confusion": 0.009009009008197387
+    },
+    {
+      "left": "l_shin",
+      "right": "r_shin",
+      "left\u2192right_rate": 0.0,
+      "right\u2192left_rate": 0.0,
+      "symmetric_confusion": 0.0
+    },
+    {
+      "left": "l_foot",
+      "right": "r_foot",
+      "left\u2192right_rate": 0.0,
+      "right\u2192left_rate": 0.0,
+      "symmetric_confusion": 0.0
+    },
+    {
+      "left": "l_collar",
+      "right": "r_collar",
+      "left\u2192right_rate": 0.0,
+      "right\u2192left_rate": 0.0,
+      "symmetric_confusion": 0.0
+    },
+    {
+      "left": "l_shoulder",
+      "right": "r_shoulder",
+      "left\u2192right_rate": 0.0,
+      "right\u2192left_rate": 0.0,
+      "symmetric_confusion": 0.0
+    },
+    {
+      "left": "l_upper_arm",
+      "right": "r_upper_arm",
+      "left\u2192right_rate": 0.0,
+      "right\u2192left_rate": 0.0,
+      "symmetric_confusion": 0.0
+    },
+    {
+      "left": "l_hand",
+      "right": "r_hand",
+      "left\u2192right_rate": 0.0,
+      "right\u2192left_rate": 0.0,
+      "symmetric_confusion": 0.0
+    }
+  ],
+  "left_right_confusion": {
+    "n_total_errors": 446,
+    "n_lr_errors": 50,
+    "lr_error_pct_of_all_errors": 11.21,
+    "per_pair": [
+      {
+        "pair": "l_thigh \u2194 r_thigh",
+        "l_thigh\u2192r_thigh": 1,
+        "r_thigh\u2192l_thigh": 24,
+        "total_lr_errors": 25
+      },
+      {
+        "pair": "l_hip \u2194 r_hip",
+        "l_hip\u2192r_hip": 2,
+        "r_hip\u2192l_hip": 21,
+        "total_lr_errors": 23
+      },
+      {
+        "pair": "l_forearm \u2194 r_forearm",
+        "l_forearm\u2192r_forearm": 0,
+        "r_forearm\u2192l_forearm": 2,
+        "total_lr_errors": 2
+      }
+    ]
+  }
+}
