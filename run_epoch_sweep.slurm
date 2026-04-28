@@ -32,7 +32,7 @@
 #SBATCH --job-name=imu_epoch_sweep
 #SBATCH --output=logs/slurm_%x_%j.out
 #SBATCH --error=logs/slurm_%x_%j.err
-#SBATCH --time=08:00:00
+#SBATCH --time=20:00:00
 #SBATCH --nodes=1
 #SBATCH --ntasks=1
 #SBATCH --cpus-per-task=8
@@ -67,7 +67,10 @@ PAD_MODE="${PAD_MODE:-edge}"
 ARCH="${ARCH:-resnet}"
 
 LOSS_FN="${LOSS_FN:-custom}"       # 'custom' or 'crossentropy'
-LR_WEIGHT="${LR_WEIGHT:-0.5}"      # penalty weight in SensorLocLoss
+LR_WEIGHT="${LR_WEIGHT:-0.5}"      # left-right mirror penalty weight
+NEIGHBOR_WEIGHT="${NEIGHBOR_WEIGHT:-0.3}"  # spatial neighbor penalty (hip/thigh fix)
+CLASS_WEIGHTS="${CLASS_WEIGHTS:-sqrt_inv}" # none / inverse_freq / sqrt_inv
+BASE_FILTERS="${BASE_FILTERS:-128}"        # 64 (1.3M params) or 128 (5M params)
 
 BATCH_SIZE="${BATCH_SIZE:-128}"
 BASE_LR="${BASE_LR:-1e-3}"
@@ -93,7 +96,8 @@ echo "[sweep] repo        : $ROOT_DIR"
 echo "[sweep] python      : $PYTHON_BIN"
 echo "[sweep] parquet_dir : $PARQUET_DIR"
 echo "[sweep] arch        : $ARCH"
-echo "[sweep] loss_fn     : $LOSS_FN  (lr_weight=$LR_WEIGHT)"
+echo "[sweep] loss_fn     : $LOSS_FN  (lr_weight=$LR_WEIGHT  neighbor_weight=$NEIGHBOR_WEIGHT)"
+echo "[sweep] class_weights: $CLASS_WEIGHTS  |  base_filters=$BASE_FILTERS"
 echo "[sweep] batch_size  : $BATCH_SIZE  lr=$BASE_LR  wd=$WEIGHT_DECAY"
 echo "[sweep] sweep folds : $MAX_FOLDS_SWEEP  |  final folds: ${MAX_FOLDS_FINAL} (0=all)"
 echo "[sweep] vote_k      : $VOTE_K"
@@ -158,7 +162,7 @@ echo "trial,epochs,batch_size,lr,weight_decay,patience,loss_fn,lr_weight,max_fol
 # ------------------------------------------------------------------
 run_trial () {
   local NAME="$1"  EPOCHS="$2"  BS="$3"  LR="$4"  WD="$5"  FOLDS="$6"
-  local LOSS="$7"  LRW="$8"
+  local LOSS="$7"  LRW="$8"  NBW="$9"  CW="${10}"  BF="${11}"
 
   local PAT=$(( EPOCHS / 6 ))
   PAT=$(( PAT < 15 ? 15 : PAT ))
@@ -168,7 +172,8 @@ run_trial () {
   mkdir -p "$OUT_DIR"
 
   echo ""
-  echo "[sweep] ── trial=$NAME  epochs=$EPOCHS  bs=$BS  lr=$LR  wd=$WD  pat=$PAT  loss=$LOSS  lrw=$LRW  folds=$FOLDS"
+  echo "[sweep] ── trial=$NAME  epochs=$EPOCHS  bs=$BS  lr=$LR  wd=$WD  pat=$PAT"
+  echo "[sweep]    loss=$LOSS  lrw=$LRW  nbw=$NBW  cw=$CW  bf=$BF  folds=$FOLDS"
 
   local -a ARGS=(
     --mode loso
@@ -182,6 +187,9 @@ run_trial () {
     --patience "$PAT"
     --loss_fn "$LOSS"
     --lr_weight "$LRW"
+    --neighbor_weight "$NBW"
+    --class_weights "$CW"
+    --base_filters "$BF"
     --device cuda
     --max_folds "$FOLDS"
   )
@@ -211,31 +219,29 @@ PY
 echo ""
 echo "[sweep] ── STEP 3/6: epoch-depth sweep ──────────────────────────────────"
 if [[ "$SMOKE_TEST" == "1" ]]; then
-  # ── Smoke: 2 tiny trials, 1 fold ─────────────────────────────────────────
-  run_trial "smoke_ep5"  5  64 1e-3 1e-4 "$MAX_FOLDS_SWEEP" "$LOSS_FN" "$LR_WEIGHT"
-  run_trial "smoke_ep10" 10 64 1e-3 1e-4 "$MAX_FOLDS_SWEEP" "$LOSS_FN" "$LR_WEIGHT"
+  run_trial "smoke_ep5"  5  64 1e-3 1e-4 "$MAX_FOLDS_SWEEP" "$LOSS_FN" "$LR_WEIGHT" "$NEIGHBOR_WEIGHT" "$CLASS_WEIGHTS" "$BASE_FILTERS"
+  run_trial "smoke_ep10" 10 64 1e-3 1e-4 "$MAX_FOLDS_SWEEP" "$LOSS_FN" "$LR_WEIGHT" "$NEIGHBOR_WEIGHT" "$CLASS_WEIGHTS" "$BASE_FILTERS"
 else
-  # ── Real sweep: push beyond the 300-ep peak seen last run ────────────────
-  # Trial 1-4: epoch depth (same lr_weight=0.5)
-  run_trial "ep150_custom" 150 "$BATCH_SIZE" "$BASE_LR" "$WEIGHT_DECAY" \
-            "$MAX_FOLDS_SWEEP" "$LOSS_FN" "$LR_WEIGHT"
-
-  run_trial "ep200_custom" 200 "$BATCH_SIZE" "$BASE_LR" "$WEIGHT_DECAY" \
-            "$MAX_FOLDS_SWEEP" "$LOSS_FN" "$LR_WEIGHT"
+  # Anchors (300/400) for continuity with previous sweep
+  # New trials (500/600/800) with full improvements:
+  #   - SpatialNeighborLoss (neighbor_weight=0.3) tackles hip/thigh confusion
+  #   - sqrt_inv class weights upweight hard/rare classes
+  #   - base_filters=128 (5M param model, 4x capacity)
 
   run_trial "ep300_custom" 300 "$BATCH_SIZE" "$BASE_LR" "$WEIGHT_DECAY" \
-            "$MAX_FOLDS_SWEEP" "$LOSS_FN" "$LR_WEIGHT"
-
-  run_trial "ep350_custom" 350 "$BATCH_SIZE" "$BASE_LR" "$WEIGHT_DECAY" \
-            "$MAX_FOLDS_SWEEP" "$LOSS_FN" "$LR_WEIGHT"
+            "$MAX_FOLDS_SWEEP" "$LOSS_FN" "$LR_WEIGHT" "$NEIGHBOR_WEIGHT" "$CLASS_WEIGHTS" "$BASE_FILTERS"
 
   run_trial "ep400_custom" 400 "$BATCH_SIZE" "$BASE_LR" "$WEIGHT_DECAY" \
-            "$MAX_FOLDS_SWEEP" "$LOSS_FN" "$LR_WEIGHT"
+            "$MAX_FOLDS_SWEEP" "$LOSS_FN" "$LR_WEIGHT" "$NEIGHBOR_WEIGHT" "$CLASS_WEIGHTS" "$BASE_FILTERS"
 
-  # Trial 5: stronger L/R penalty (lr_weight=1.0) at best previous epoch
-  # Tests whether doubling the symmetry penalty reduces L/R confusion errors
-  run_trial "ep300_lrw1" 300 "$BATCH_SIZE" "$BASE_LR" "$WEIGHT_DECAY" \
-            "$MAX_FOLDS_SWEEP" "custom" "1.0"
+  run_trial "ep500_custom" 500 "$BATCH_SIZE" "$BASE_LR" "$WEIGHT_DECAY" \
+            "$MAX_FOLDS_SWEEP" "$LOSS_FN" "$LR_WEIGHT" "$NEIGHBOR_WEIGHT" "$CLASS_WEIGHTS" "$BASE_FILTERS"
+
+  run_trial "ep600_custom" 600 "$BATCH_SIZE" "$BASE_LR" "$WEIGHT_DECAY" \
+            "$MAX_FOLDS_SWEEP" "$LOSS_FN" "$LR_WEIGHT" "$NEIGHBOR_WEIGHT" "$CLASS_WEIGHTS" "$BASE_FILTERS"
+
+  run_trial "ep800_custom" 800 "$BATCH_SIZE" "$BASE_LR" "$WEIGHT_DECAY" \
+            "$MAX_FOLDS_SWEEP" "$LOSS_FN" "$LR_WEIGHT" "$NEIGHBOR_WEIGHT" "$CLASS_WEIGHTS" "$BASE_FILTERS"
 fi
 
 # ── Print leaderboard ─────────────────────────────────────────────────────

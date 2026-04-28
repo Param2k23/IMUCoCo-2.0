@@ -44,101 +44,134 @@ from normalization import (
 
 
 # ---------------------------------------------------------------------------
-# Custom loss: CrossEntropy + Left-Right Symmetry Penalty
+# Custom losses
 # ---------------------------------------------------------------------------
 
+from smpl_regions import REGION_CENTROIDS  # (24, 3) T-pose centroids in metres
 
-class SensorLocLoss(nn.Module):
+
+class SpatialNeighborLoss(nn.Module):
     """
-    Domain-aware loss for IMU sensor-location classification.
+    Spatial-aware loss that penalises the model for being confident in ANY
+    nearby body region, not just left-right mirrors.
 
-    = CrossEntropyLoss
-    + lr_weight * mean( P(mirror_class | x) )   for misclassified samples
+    = CrossEntropy(logits, y)
+    + lr_weight      × mean P(mirror_class | x)          [left-right penalty]
+    + neighbor_weight × mean Σ_j  w_j · P(class_j | x)  [neighbor penalty]
+
+    where w_j = max(0, 1 - dist(centroid_y, centroid_j) / radius)
+    for all j ≠ y within `neighbor_radius` metres.
 
     Intuition
     ---------
-    The model's biggest confuser is left vs right (e.g. l_hand → r_hand).
-    For every sample, we look up its *mirror* class (the symmetric body part
-    on the opposite side).  We add the model's softmax confidence in that
-    mirror class to the loss, penalising the model every time it "almost"
-    predicts the wrong side.  This forces the network to learn the subtle
-    acceleration/angular-velocity asymmetries that discriminate left from right.
+    The model confuses l_hip with pelvis and l_thigh (all ~10-20 cm apart)
+    because CE treats those errors identically to confusing l_hip with l_hand.
+    The neighbor penalty adds extra cost proportional to *how close* the wrong
+    prediction is — the closer, the harder we penalise.
+
+    This is a strict generalisation of SensorLocLoss:
+      SensorLocLoss ≡ SpatialNeighborLoss(neighbor_weight=0, radius=0)
 
     Parameters
     ----------
-    lr_weight : float
-        How strongly to penalise left-right confusion relative to CE.
-        0.0  → identical to plain CrossEntropyLoss
-        0.5  → moderate penalty (recommended starting point)
-        1.0  → equal weight to CE
-    label_smoothing : float
-        Passed through to nn.CrossEntropyLoss for regularisation.
+    lr_weight       : weight for the left-right mirror penalty (0 = off)
+    neighbor_weight : weight for the spatial proximity penalty (0.3 recommended)
+    neighbor_radius : distance threshold in metres; regions beyond this are
+                      not penalised (default 0.35 m ≈ hip-to-knee distance)
+    label_smoothing : passed to CrossEntropyLoss
+    class_weights   : optional (C,) tensor for weighted CE (upweight hard classes)
     """
 
     def __init__(
         self,
         lr_weight: float = 0.5,
-        label_smoothing: float = 0.0,
+        neighbor_weight: float = 0.3,
+        neighbor_radius: float = 0.35,
+        label_smoothing: float = 0.05,
         num_classes: int = NUM_REGIONS,
+        class_weights: Optional[torch.Tensor] = None,
     ):
         super().__init__()
-        self.lr_weight = lr_weight
-        self.ce = nn.CrossEntropyLoss(label_smoothing=label_smoothing)
+        self.lr_weight       = lr_weight
+        self.neighbor_weight = neighbor_weight
 
-        # Build a mirror-class lookup tensor: mirror[c] = symmetric partner of c
-        # (or c itself if no symmetric pair exists, meaning midline regions).
+        self.ce = nn.CrossEntropyLoss(
+            weight=class_weights, label_smoothing=label_smoothing
+        )
+
+        # ── Left-right mirror map ─────────────────────────────────────────
         mirror = list(range(num_classes))
         for l_id, r_id in SYMMETRY_PAIRS:
             mirror[l_id] = r_id
             mirror[r_id] = l_id
-        # Register as a buffer so it moves with .to(device)
-        self.register_buffer(
-            "mirror_map", torch.tensor(mirror, dtype=torch.long)
-        )
+        self.register_buffer("mirror_map", torch.tensor(mirror, dtype=torch.long))
+
+        # ── Spatial proximity weight matrix  (C, C) ───────────────────────
+        # prox[i, j] = how strongly to penalise class j when true class is i
+        # = max(0, 1 - dist(i,j)/radius),  0 on diagonal
+        centroids = torch.tensor(REGION_CENTROIDS, dtype=torch.float32)  # (C, 3)
+        diffs = centroids.unsqueeze(0) - centroids.unsqueeze(1)          # (C, C, 3)
+        dists = diffs.norm(dim=2)                                         # (C, C)
+        prox  = (1.0 - dists / neighbor_radius).clamp(min=0.0)           # (C, C)
+        prox.fill_diagonal_(0.0)                                          # zero self
+        self.register_buffer("prox_matrix", prox)                        # (C, C)
 
     def forward(
         self, logits: torch.Tensor, targets: torch.Tensor
     ) -> torch.Tensor:
-        """
-        Parameters
-        ----------
-        logits  : (B, C)  raw model output
-        targets : (B,)    ground-truth class indices
-        """
         ce_loss = self.ce(logits, targets)
+        probs   = F.softmax(logits, dim=1)           # (B, C)
 
-        if self.lr_weight == 0.0:
-            return ce_loss
+        penalties = ce_loss * 0.0  # scalar zero on correct device
+        n_terms   = 0
 
-        # For each sample's true class, find the mirror class
-        mirror_targets = self.mirror_map[targets]           # (B,)
-        # Only apply penalty where a true mirror exists (not midline)
-        has_mirror = mirror_targets != targets              # (B,) bool
+        # ── Left-right mirror penalty ─────────────────────────────────────
+        if self.lr_weight > 0.0:
+            mirror_targets = self.mirror_map[targets]     # (B,)
+            has_mirror     = mirror_targets != targets    # (B,)
+            if has_mirror.any():
+                mirror_probs = probs[has_mirror].gather(
+                    1, mirror_targets[has_mirror].unsqueeze(1)
+                ).squeeze(1)
+                penalties = penalties + self.lr_weight * mirror_probs.mean()
+                n_terms  += 1
 
-        if not has_mirror.any():
-            return ce_loss
+        # ── Spatial neighbor penalty ──────────────────────────────────────
+        if self.neighbor_weight > 0.0:
+            # For each sample, get the proximity weights for its true class
+            # prox_row: (B, C)  — how close each other class is to true class
+            prox_row = self.prox_matrix[targets]          # (B, C)
+            # Penalise: sum of (prox_weight × prob_of_that_class) per sample
+            neighbor_pen = (prox_row * probs).sum(dim=1).mean()  # scalar
+            penalties    = penalties + self.neighbor_weight * neighbor_pen
+            n_terms     += 1
 
-        probs = F.softmax(logits, dim=1)                    # (B, C)
-        # Gather the probability assigned to the mirror class
-        mirror_probs = probs[has_mirror].gather(
-            1, mirror_targets[has_mirror].unsqueeze(1)
-        ).squeeze(1)                                        # (M,)
-
-        lr_penalty = mirror_probs.mean()
-        return ce_loss + self.lr_weight * lr_penalty
+        return ce_loss + penalties
 
 
-def build_criterion(loss_fn: str, lr_weight: float = 0.5) -> nn.Module:
-    """Factory: 'crossentropy' or 'custom'."""
+def build_criterion(
+    loss_fn: str,
+    lr_weight: float = 0.5,
+    neighbor_weight: float = 0.3,
+    class_weights: Optional[torch.Tensor] = None,
+) -> nn.Module:
+    """Factory: 'crossentropy' or 'custom' (SpatialNeighborLoss)."""
     if loss_fn == "custom":
         log.info(
-            "Using SensorLocLoss  (CE + L/R symmetry penalty, lr_weight=%.2f)",
-            lr_weight,
+            "Using SpatialNeighborLoss  "
+            "(CE + L/R penalty lr_w=%.2f + neighbor penalty nb_w=%.2f)",
+            lr_weight, neighbor_weight,
         )
-        return SensorLocLoss(lr_weight=lr_weight, label_smoothing=0.05)
+        return SpatialNeighborLoss(
+            lr_weight=lr_weight,
+            neighbor_weight=neighbor_weight,
+            label_smoothing=0.05,
+            class_weights=class_weights,
+        )
     else:
-        log.info("Using standard CrossEntropyLoss")
-        return nn.CrossEntropyLoss()
+        log.info("Using standard CrossEntropyLoss%s",
+                 " (class-weighted)" if class_weights is not None else "")
+        return nn.CrossEntropyLoss(weight=class_weights)
 
 logging.basicConfig(
     level=logging.INFO, format="%(asctime)s  %(levelname)-8s  %(message)s"
@@ -286,6 +319,32 @@ def evaluate(
 # ---------------------------------------------------------------------------
 
 
+def _build_class_weights(
+    y: np.ndarray,
+    device: torch.device,
+    mode: str = "none",
+) -> Optional[torch.Tensor]:
+    """
+    Build optional class-weight tensor for CrossEntropyLoss.
+
+    mode='none'        → no weights (standard CE)
+    mode='inverse_freq' → 1/class_frequency (upweights rare / hard classes)
+    mode='sqrt_inv'    → 1/sqrt(class_frequency) (softer version)
+    """
+    if mode == "none":
+        return None
+    counts = np.bincount(y, minlength=NUM_REGIONS).astype(np.float32)
+    counts = np.maximum(counts, 1)          # avoid div-by-zero
+    if mode == "inverse_freq":
+        w = 1.0 / counts
+    elif mode == "sqrt_inv":
+        w = 1.0 / np.sqrt(counts)
+    else:
+        raise ValueError(f"Unknown class_weights mode: {mode!r}")
+    w = w / w.sum() * NUM_REGIONS           # normalise so mean weight = 1
+    return torch.tensor(w, dtype=torch.float32).to(device)
+
+
 def loso_train(
     X: np.ndarray,
     y: np.ndarray,
@@ -302,6 +361,9 @@ def loso_train(
     max_folds: Optional[int] = None,
     loss_fn: str = "crossentropy",
     lr_weight: float = 0.5,
+    neighbor_weight: float = 0.3,
+    class_weights_mode: str = "none",
+    base_filters: int = 64,
 ) -> List[float]:
     """
     Leave-One-Subject-Out cross-validation.
@@ -351,11 +413,15 @@ def loso_train(
             )
 
             # Build fresh model each fold
-            model = build_model(arch, n_classes=NUM_REGIONS, in_channels=X.shape[1]).to(
-                device
-            )
+            model = build_model(
+                arch, n_classes=NUM_REGIONS, in_channels=X.shape[1],
+                base_filters=base_filters,
+            ).to(device)
             model = wrap_data_parallel(model, multi_gpu, device)
-            criterion = build_criterion(loss_fn, lr_weight).to(device)
+            cw = _build_class_weights(y_tr, device, class_weights_mode)
+            criterion = build_criterion(
+                loss_fn, lr_weight, neighbor_weight, cw
+            ).to(device)
             optimiser = Adam(
                 model.parameters(), lr=lr, weight_decay=float(weight_decay)
             )
@@ -450,6 +516,9 @@ def fixed_split_train(
     multi_gpu: bool = False,
     loss_fn: str = "crossentropy",
     lr_weight: float = 0.5,
+    neighbor_weight: float = 0.3,
+    class_weights_mode: str = "none",
+    base_filters: int = 64,
 ) -> float:
     os.makedirs(out_dir, exist_ok=True)
     results_path = os.path.join(out_dir, "fixed_split_results.txt")
@@ -463,11 +532,13 @@ def fixed_split_train(
         batch_size,
     )
 
-    model = build_model(arch, n_classes=NUM_REGIONS, in_channels=X_tr.shape[1]).to(
-        device
-    )
+    model = build_model(
+        arch, n_classes=NUM_REGIONS, in_channels=X_tr.shape[1],
+        base_filters=base_filters,
+    ).to(device)
     model = wrap_data_parallel(model, multi_gpu, device)
-    criterion = build_criterion(loss_fn, lr_weight).to(device)
+    cw = _build_class_weights(y_tr, device, class_weights_mode)
+    criterion = build_criterion(loss_fn, lr_weight, neighbor_weight, cw).to(device)
     optimiser = Adam(model.parameters(), lr=lr, weight_decay=float(weight_decay))
     scheduler = CosineAnnealingLR(optimiser, T_max=epochs, eta_min=lr / 100)
 
@@ -557,13 +628,25 @@ def parse_args():
         "--loss_fn",
         default="custom",
         choices=["crossentropy", "custom"],
-        help="'custom' = CE + left-right symmetry penalty; 'crossentropy' = standard CE",
+        help="'custom' = SpatialNeighborLoss; 'crossentropy' = standard CE",
     )
     p.add_argument(
-        "--lr_weight",
-        type=float,
-        default=0.5,
-        help="Weight for the left-right symmetry penalty in SensorLocLoss (default 0.5)",
+        "--lr_weight", type=float, default=0.5,
+        help="Weight for left-right mirror penalty in SpatialNeighborLoss (default 0.5)",
+    )
+    p.add_argument(
+        "--neighbor_weight", type=float, default=0.3,
+        help="Weight for spatial neighbor penalty — tackles hip/thigh confusion (default 0.3)",
+    )
+    p.add_argument(
+        "--class_weights",
+        default="none",
+        choices=["none", "inverse_freq", "sqrt_inv"],
+        help="Class weighting for CE: 'inverse_freq' upweights hard/rare classes (default none)",
+    )
+    p.add_argument(
+        "--base_filters", type=int, default=64,
+        help="ResNet base filter count — 64 (default, 1.3M params) or 128 (5M params, more capacity)",
     )
     p.add_argument(
         "--smoke_test",
@@ -641,6 +724,9 @@ if __name__ == "__main__":
             max_folds=max_folds,
             loss_fn=args.loss_fn,
             lr_weight=args.lr_weight,
+            neighbor_weight=args.neighbor_weight,
+            class_weights_mode=args.class_weights,
+            base_filters=args.base_filters,
         )
     else:
         if not args.train_data or not args.val_data:
@@ -666,4 +752,7 @@ if __name__ == "__main__":
             multi_gpu=args.multi_gpu,
             loss_fn=args.loss_fn,
             lr_weight=args.lr_weight,
+            neighbor_weight=args.neighbor_weight,
+            class_weights_mode=args.class_weights,
+            base_filters=args.base_filters,
         )

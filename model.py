@@ -192,6 +192,7 @@ def build_model(arch: str = "resnet", **kwargs) -> nn.Module:
     ----------
     arch : 'resnet' (default) or 'cnn'
     kwargs : forwarded to the model constructor
+             e.g. base_filters=128 for a larger ResNet (5M params vs 1.3M)
     """
     if arch == "resnet":
         return ResNet1D(**kwargs)
