@@ -1,22 +1,15 @@
 {
-  "per_window_accuracy": 0.8976608187134503,
-  "majority_vote_accuracy": 0.02702702702702703,
+  "per_window_accuracy": 0.8932748538011696,
+  "majority_vote_accuracy": 0.041666666666666664,
   "vote_k": 5,
-  "locked_fraction": 0.013523391812865498,
+  "locked_fraction": 0.017543859649122806,
   "n_windows": 2736,
   "spatial_error": {
-    "mean_m": 0.2999435067176819,
-    "std_m": 0.1864047795534134,
-    "n_wrong": 280
+    "mean_m": 0.2954380512237549,
+    "std_m": 0.1785699427127838,
+    "n_wrong": 292
   },
   "symmetry_confusion": [
-    {
-      "left": "l_thigh",
-      "right": "r_thigh",
-      "left\u2192right_rate": 0.03508771929516775,
-      "right\u2192left_rate": 0.0,
-      "symmetric_confusion": 0.017543859647583874
-    },
     {
       "left": "l_forearm",
       "right": "r_forearm",
@@ -25,15 +18,29 @@
       "symmetric_confusion": 0.013157894735687905
     },
     {
-      "left": "l_shin",
-      "right": "r_shin",
+      "left": "l_hip",
+      "right": "r_hip",
       "left\u2192right_rate": 0.0,
       "right\u2192left_rate": 0.017543859647583874,
       "symmetric_confusion": 0.008771929823791937
     },
     {
-      "left": "l_hip",
-      "right": "r_hip",
+      "left": "l_thigh",
+      "right": "r_thigh",
+      "left\u2192right_rate": 0.008771929823791937,
+      "right\u2192left_rate": 0.0,
+      "symmetric_confusion": 0.0043859649118959685
+    },
+    {
+      "left": "l_collar",
+      "right": "r_collar",
+      "left\u2192right_rate": 0.0,
+      "right\u2192left_rate": 0.008771929823791937,
+      "symmetric_confusion": 0.0043859649118959685
+    },
+    {
+      "left": "l_shin",
+      "right": "r_shin",
       "left\u2192right_rate": 0.0,
       "right\u2192left_rate": 0.0,
       "symmetric_confusion": 0.0
@@ -41,13 +48,6 @@
     {
       "left": "l_foot",
       "right": "r_foot",
-      "left\u2192right_rate": 0.0,
-      "right\u2192left_rate": 0.0,
-      "symmetric_confusion": 0.0
-    },
-    {
-      "left": "l_collar",
-      "right": "r_collar",
       "left\u2192right_rate": 0.0,
       "right\u2192left_rate": 0.0,
       "symmetric_confusion": 0.0
@@ -75,16 +75,10 @@
     }
   ],
   "left_right_confusion": {
-    "n_total_errors": 280,
-    "n_lr_errors": 9,
-    "lr_error_pct_of_all_errors": 3.21,
+    "n_total_errors": 292,
+    "n_lr_errors": 7,
+    "lr_error_pct_of_all_errors": 2.4,
     "per_pair": [
-      {
-        "pair": "l_thigh \u2194 r_thigh",
-        "l_thigh\u2192r_thigh": 4,
-        "r_thigh\u2192l_thigh": 0,
-        "total_lr_errors": 4
-      },
       {
         "pair": "l_forearm \u2194 r_forearm",
         "l_forearm\u2192r_forearm": 3,
@@ -92,10 +86,22 @@
         "total_lr_errors": 3
       },
       {
-        "pair": "l_shin \u2194 r_shin",
-        "l_shin\u2192r_shin": 0,
-        "r_shin\u2192l_shin": 2,
+        "pair": "l_hip \u2194 r_hip",
+        "l_hip\u2192r_hip": 0,
+        "r_hip\u2192l_hip": 2,
         "total_lr_errors": 2
+      },
+      {
+        "pair": "l_thigh \u2194 r_thigh",
+        "l_thigh\u2192r_thigh": 1,
+        "r_thigh\u2192l_thigh": 0,
+        "total_lr_errors": 1
+      },
+      {
+        "pair": "l_collar \u2194 r_collar",
+        "l_collar\u2192r_collar": 0,
+        "r_collar\u2192l_collar": 1,
+        "total_lr_errors": 1
       }
     ]
   }

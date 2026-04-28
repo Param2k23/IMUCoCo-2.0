@@ -1,0 +1,254 @@
+2026-04-28 04:46:01,047  INFO      Using device: cuda
+2026-04-28 04:46:01,925  INFO      Loaded data/processed/epoch_sweep_dataset.npz  |  X=(21696, 9, 300)  classes=24  subjects=10
+2026-04-28 04:46:01,931  INFO      
+── Fold 1/5  (test subject = 1) ──
+2026-04-28 04:46:02,266  INFO      Using SpatialNeighborLoss  (CE + L/R penalty lr_w=0.50 + neighbor penalty nb_w=0.30)
+2026-04-28 04:46:04,051  INFO        ep   1/800  tr_loss=2.0381  tr_acc=0.4134  val_loss=1.8281  val_acc=0.4515
+2026-04-28 04:46:07,581  INFO        ep   5/800  tr_loss=1.2030  tr_acc=0.6861  val_loss=1.6709  val_acc=0.5481
+2026-04-28 04:46:11,983  INFO        ep  10/800  tr_loss=0.9463  tr_acc=0.7868  val_loss=1.1902  val_acc=0.6800
+2026-04-28 04:46:16,538  INFO        ep  15/800  tr_loss=0.8437  tr_acc=0.8253  val_loss=1.1586  val_acc=0.7299
+2026-04-28 04:46:20,897  INFO        ep  20/800  tr_loss=0.7855  tr_acc=0.8508  val_loss=1.2069  val_acc=0.6915
+2026-04-28 04:46:25,254  INFO        ep  25/800  tr_loss=0.7195  tr_acc=0.8761  val_loss=1.1134  val_acc=0.7428
+2026-04-28 04:46:29,607  INFO        ep  30/800  tr_loss=0.6825  tr_acc=0.8917  val_loss=1.2589  val_acc=0.7123
+2026-04-28 04:46:33,941  INFO        ep  35/800  tr_loss=0.6416  tr_acc=0.9078  val_loss=1.2067  val_acc=0.7367
+2026-04-28 04:46:38,279  INFO        ep  40/800  tr_loss=0.6175  tr_acc=0.9187  val_loss=1.1222  val_acc=0.7629
+2026-04-28 04:46:42,567  INFO        ep  45/800  tr_loss=0.5882  tr_acc=0.9316  val_loss=1.1696  val_acc=0.7561
+2026-04-28 04:46:46,838  INFO        ep  50/800  tr_loss=0.5774  tr_acc=0.9343  val_loss=1.1678  val_acc=0.7468
+2026-04-28 04:46:51,113  INFO        ep  55/800  tr_loss=0.5589  tr_acc=0.9419  val_loss=1.1354  val_acc=0.7701
+2026-04-28 04:46:55,390  INFO        ep  60/800  tr_loss=0.5396  tr_acc=0.9514  val_loss=1.0953  val_acc=0.7823
+2026-04-28 04:46:59,664  INFO        ep  65/800  tr_loss=0.5302  tr_acc=0.9547  val_loss=1.2232  val_acc=0.7496
+2026-04-28 04:47:03,937  INFO        ep  70/800  tr_loss=0.5175  tr_acc=0.9574  val_loss=1.1211  val_acc=0.7733
+2026-04-28 04:47:08,231  INFO        ep  75/800  tr_loss=0.5186  tr_acc=0.9578  val_loss=1.1728  val_acc=0.7601
+2026-04-28 04:47:12,502  INFO        ep  80/800  tr_loss=0.5126  tr_acc=0.9613  val_loss=1.1887  val_acc=0.7640
+2026-04-28 04:47:16,795  INFO        ep  85/800  tr_loss=0.5073  tr_acc=0.9631  val_loss=1.2524  val_acc=0.7493
+2026-04-28 04:47:21,063  INFO        ep  90/800  tr_loss=0.4969  tr_acc=0.9686  val_loss=1.1681  val_acc=0.7766
+2026-04-28 04:47:25,330  INFO        ep  95/800  tr_loss=0.4831  tr_acc=0.9713  val_loss=1.1935  val_acc=0.7669
+2026-04-28 04:47:29,619  INFO        ep 100/800  tr_loss=0.4822  tr_acc=0.9717  val_loss=1.0781  val_acc=0.7798
+2026-04-28 04:47:33,887  INFO        ep 105/800  tr_loss=0.4823  tr_acc=0.9740  val_loss=1.2138  val_acc=0.7636
+2026-04-28 04:47:38,156  INFO        ep 110/800  tr_loss=0.4794  tr_acc=0.9730  val_loss=1.2115  val_acc=0.7651
+2026-04-28 04:47:42,450  INFO        ep 115/800  tr_loss=0.4922  tr_acc=0.9685  val_loss=1.1154  val_acc=0.7852
+2026-04-28 04:47:46,717  INFO        ep 120/800  tr_loss=0.4864  tr_acc=0.9705  val_loss=1.1902  val_acc=0.7676
+2026-04-28 04:47:50,984  INFO        ep 125/800  tr_loss=0.4679  tr_acc=0.9767  val_loss=1.1937  val_acc=0.7795
+2026-04-28 04:47:55,252  INFO        ep 130/800  tr_loss=0.4784  tr_acc=0.9730  val_loss=1.1668  val_acc=0.7795
+2026-04-28 04:47:59,516  INFO        ep 135/800  tr_loss=0.4566  tr_acc=0.9809  val_loss=1.0829  val_acc=0.7956
+2026-04-28 04:48:03,781  INFO        ep 140/800  tr_loss=0.4794  tr_acc=0.9721  val_loss=1.1917  val_acc=0.7669
+2026-04-28 04:48:08,069  INFO        ep 145/800  tr_loss=0.4577  tr_acc=0.9799  val_loss=1.0521  val_acc=0.7945
+2026-04-28 04:48:12,357  INFO        ep 150/800  tr_loss=0.4692  tr_acc=0.9763  val_loss=1.1387  val_acc=0.7827
+2026-04-28 04:48:16,618  INFO        ep 155/800  tr_loss=0.4487  tr_acc=0.9835  val_loss=1.1082  val_acc=0.7899
+2026-04-28 04:48:20,878  INFO        ep 160/800  tr_loss=0.4595  tr_acc=0.9786  val_loss=1.1830  val_acc=0.7802
+2026-04-28 04:48:25,136  INFO        ep 165/800  tr_loss=0.4529  tr_acc=0.9804  val_loss=1.1254  val_acc=0.7892
+2026-04-28 04:48:29,395  INFO        ep 170/800  tr_loss=0.4519  tr_acc=0.9818  val_loss=1.0701  val_acc=0.8143
+2026-04-28 04:48:33,654  INFO        ep 175/800  tr_loss=0.4477  tr_acc=0.9815  val_loss=1.0847  val_acc=0.7996
+2026-04-28 04:48:37,940  INFO        ep 180/800  tr_loss=0.4479  tr_acc=0.9827  val_loss=1.0451  val_acc=0.8168
+2026-04-28 04:48:42,199  INFO        ep 185/800  tr_loss=0.4391  tr_acc=0.9838  val_loss=1.0400  val_acc=0.8229
+2026-04-28 04:48:46,459  INFO        ep 190/800  tr_loss=0.4445  tr_acc=0.9828  val_loss=1.0623  val_acc=0.8107
+2026-04-28 04:48:50,718  INFO        ep 195/800  tr_loss=0.4410  tr_acc=0.9841  val_loss=1.0679  val_acc=0.8175
+2026-04-28 04:48:54,979  INFO        ep 200/800  tr_loss=0.4505  tr_acc=0.9811  val_loss=1.0030  val_acc=0.8218
+2026-04-28 04:48:59,239  INFO        ep 205/800  tr_loss=0.4351  tr_acc=0.9848  val_loss=0.9986  val_acc=0.8265
+2026-04-28 04:49:03,523  INFO        ep 210/800  tr_loss=0.4401  tr_acc=0.9843  val_loss=1.0383  val_acc=0.8050
+2026-04-28 04:49:07,783  INFO        ep 215/800  tr_loss=0.4337  tr_acc=0.9858  val_loss=1.0407  val_acc=0.8208
+2026-04-28 04:49:12,044  INFO        ep 220/800  tr_loss=0.4374  tr_acc=0.9838  val_loss=1.0827  val_acc=0.8129
+2026-04-28 04:49:16,304  INFO        ep 225/800  tr_loss=0.4324  tr_acc=0.9857  val_loss=1.0268  val_acc=0.8161
+2026-04-28 04:49:20,578  INFO        ep 230/800  tr_loss=0.4352  tr_acc=0.9852  val_loss=0.9757  val_acc=0.8287
+2026-04-28 04:49:24,862  INFO        ep 235/800  tr_loss=0.4313  tr_acc=0.9859  val_loss=0.9721  val_acc=0.8279
+2026-04-28 04:49:29,171  INFO        ep 240/800  tr_loss=0.4281  tr_acc=0.9885  val_loss=1.0725  val_acc=0.8132
+2026-04-28 04:49:33,469  INFO        ep 245/800  tr_loss=0.4236  tr_acc=0.9885  val_loss=1.2071  val_acc=0.7820
+2026-04-28 04:49:37,730  INFO        ep 250/800  tr_loss=0.4375  tr_acc=0.9849  val_loss=1.0020  val_acc=0.8190
+2026-04-28 04:49:41,988  INFO        ep 255/800  tr_loss=0.4172  tr_acc=0.9907  val_loss=1.0185  val_acc=0.8218
+2026-04-28 04:49:46,246  INFO        ep 260/800  tr_loss=0.4242  tr_acc=0.9880  val_loss=1.0115  val_acc=0.8226
+2026-04-28 04:49:50,504  INFO        ep 265/800  tr_loss=0.4157  tr_acc=0.9906  val_loss=1.0582  val_acc=0.8121
+2026-04-28 04:49:54,777  INFO        ep 270/800  tr_loss=0.4244  tr_acc=0.9873  val_loss=0.9708  val_acc=0.8305
+2026-04-28 04:49:59,036  INFO        ep 275/800  tr_loss=0.4188  tr_acc=0.9893  val_loss=1.0384  val_acc=0.8226
+2026-04-28 04:50:03,294  INFO        ep 280/800  tr_loss=0.4175  tr_acc=0.9906  val_loss=1.0671  val_acc=0.7963
+2026-04-28 04:50:07,552  INFO        ep 285/800  tr_loss=0.4305  tr_acc=0.9859  val_loss=0.9828  val_acc=0.8168
+2026-04-28 04:50:11,810  INFO        ep 290/800  tr_loss=0.4122  tr_acc=0.9915  val_loss=1.1546  val_acc=0.7870
+2026-04-28 04:50:16,069  INFO        ep 295/800  tr_loss=0.4144  tr_acc=0.9911  val_loss=1.0029  val_acc=0.8211
+2026-04-28 04:50:20,328  INFO        ep 300/800  tr_loss=0.4257  tr_acc=0.9880  val_loss=1.0227  val_acc=0.8290
+2026-04-28 04:50:24,586  INFO        ep 305/800  tr_loss=0.4171  tr_acc=0.9909  val_loss=1.0416  val_acc=0.8283
+2026-04-28 04:50:28,845  INFO        ep 310/800  tr_loss=0.4035  tr_acc=0.9947  val_loss=1.0744  val_acc=0.8125
+2026-04-28 04:50:33,104  INFO        ep 315/800  tr_loss=0.4120  tr_acc=0.9919  val_loss=0.9915  val_acc=0.8301
+2026-04-28 04:50:37,363  INFO        ep 320/800  tr_loss=0.4227  tr_acc=0.9885  val_loss=1.0011  val_acc=0.8341
+2026-04-28 04:50:41,623  INFO        ep 325/800  tr_loss=0.4069  tr_acc=0.9935  val_loss=0.9347  val_acc=0.8373
+2026-04-28 04:50:42,475  INFO        Early stopping at epoch 326 (patience=60).
+2026-04-28 04:50:42,476  INFO        Fold 0 done  |  best_val_acc=0.8373  |  279.6s
+2026-04-28 04:50:42,476  INFO      
+── Fold 2/5  (test subject = 2) ──
+2026-04-28 04:50:42,656  INFO      Using SpatialNeighborLoss  (CE + L/R penalty lr_w=0.50 + neighbor penalty nb_w=0.30)
+2026-04-28 04:50:43,537  INFO        ep   1/800  tr_loss=2.0422  tr_acc=0.4170  val_loss=1.7604  val_acc=0.4752
+2026-04-28 04:50:47,004  INFO        ep   5/800  tr_loss=1.1819  tr_acc=0.6895  val_loss=1.5168  val_acc=0.6111
+2026-04-28 04:50:51,307  INFO        ep  10/800  tr_loss=0.9210  tr_acc=0.7970  val_loss=1.3186  val_acc=0.6577
+2026-04-28 04:50:55,611  INFO        ep  15/800  tr_loss=0.8042  tr_acc=0.8424  val_loss=1.1939  val_acc=0.7046
+2026-04-28 04:50:59,876  INFO        ep  20/800  tr_loss=0.7478  tr_acc=0.8632  val_loss=1.3590  val_acc=0.6753
+2026-04-28 04:51:04,141  INFO        ep  25/800  tr_loss=0.6991  tr_acc=0.8867  val_loss=1.2994  val_acc=0.6967
+2026-04-28 04:51:08,417  INFO        ep  30/800  tr_loss=0.6507  tr_acc=0.9056  val_loss=1.2432  val_acc=0.7158
+2026-04-28 04:51:12,693  INFO        ep  35/800  tr_loss=0.6246  tr_acc=0.9158  val_loss=1.2112  val_acc=0.7410
+2026-04-28 04:51:16,968  INFO        ep  40/800  tr_loss=0.5977  tr_acc=0.9273  val_loss=1.2401  val_acc=0.7203
+2026-04-28 04:51:21,236  INFO        ep  45/800  tr_loss=0.5675  tr_acc=0.9381  val_loss=1.1472  val_acc=0.7553
+2026-04-28 04:51:25,521  INFO        ep  50/800  tr_loss=0.5632  tr_acc=0.9412  val_loss=1.2159  val_acc=0.7485
+2026-04-28 04:51:29,818  INFO        ep  55/800  tr_loss=0.5421  tr_acc=0.9484  val_loss=1.2961  val_acc=0.7230
+2026-04-28 04:51:34,117  INFO        ep  60/800  tr_loss=0.5264  tr_acc=0.9543  val_loss=1.2078  val_acc=0.7451
+2026-04-28 04:51:38,415  INFO        ep  65/800  tr_loss=0.5258  tr_acc=0.9558  val_loss=1.2689  val_acc=0.7248
+2026-04-28 04:51:42,725  INFO        ep  70/800  tr_loss=0.5089  tr_acc=0.9612  val_loss=1.2278  val_acc=0.7395
+2026-04-28 04:51:47,020  INFO        ep  75/800  tr_loss=0.5049  tr_acc=0.9625  val_loss=1.2628  val_acc=0.7410
+2026-04-28 04:51:51,314  INFO        ep  80/800  tr_loss=0.5041  tr_acc=0.9642  val_loss=1.2386  val_acc=0.7421
+2026-04-28 04:51:55,607  INFO        ep  85/800  tr_loss=0.4895  tr_acc=0.9706  val_loss=1.2177  val_acc=0.7496
+2026-04-28 04:51:59,900  INFO        ep  90/800  tr_loss=0.4833  tr_acc=0.9708  val_loss=1.2613  val_acc=0.7342
+2026-04-28 04:52:04,192  INFO        ep  95/800  tr_loss=0.4838  tr_acc=0.9697  val_loss=1.2407  val_acc=0.7511
+2026-04-28 04:52:08,484  INFO        ep 100/800  tr_loss=0.4870  tr_acc=0.9711  val_loss=1.3492  val_acc=0.7155
+2026-04-28 04:52:12,777  INFO        ep 105/800  tr_loss=0.4733  tr_acc=0.9749  val_loss=1.2174  val_acc=0.7481
+2026-04-28 04:52:17,072  INFO        ep 110/800  tr_loss=0.4713  tr_acc=0.9763  val_loss=1.3115  val_acc=0.7395
+2026-04-28 04:52:21,366  INFO        ep 115/800  tr_loss=0.4741  tr_acc=0.9749  val_loss=1.2248  val_acc=0.7410
+2026-04-28 04:52:25,660  INFO        ep 120/800  tr_loss=0.4912  tr_acc=0.9683  val_loss=1.2423  val_acc=0.7444
+2026-04-28 04:52:29,956  INFO        ep 125/800  tr_loss=0.4640  tr_acc=0.9778  val_loss=1.2475  val_acc=0.7496
+2026-04-28 04:52:33,395  INFO        Early stopping at epoch 129 (patience=60).
+2026-04-28 04:52:33,395  INFO        Fold 1 done  |  best_val_acc=0.7763  |  110.7s
+2026-04-28 04:52:33,395  INFO      
+── Fold 3/5  (test subject = 3) ──
+2026-04-28 04:52:33,571  INFO      Using SpatialNeighborLoss  (CE + L/R penalty lr_w=0.50 + neighbor penalty nb_w=0.30)
+2026-04-28 04:52:34,459  INFO        ep   1/800  tr_loss=2.0349  tr_acc=0.4143  val_loss=1.6919  val_acc=0.4879
+2026-04-28 04:52:37,902  INFO        ep   5/800  tr_loss=1.2018  tr_acc=0.6792  val_loss=1.3267  val_acc=0.6323
+2026-04-28 04:52:42,209  INFO        ep  10/800  tr_loss=0.9608  tr_acc=0.7765  val_loss=1.1328  val_acc=0.7255
+2026-04-28 04:52:46,502  INFO        ep  15/800  tr_loss=0.8427  tr_acc=0.8288  val_loss=1.1644  val_acc=0.7142
+2026-04-28 04:52:50,768  INFO        ep  20/800  tr_loss=0.7580  tr_acc=0.8597  val_loss=1.0430  val_acc=0.7460
+2026-04-28 04:52:55,035  INFO        ep  25/800  tr_loss=0.7252  tr_acc=0.8772  val_loss=1.0830  val_acc=0.7423
+2026-04-28 04:52:59,301  INFO        ep  30/800  tr_loss=0.6764  tr_acc=0.8937  val_loss=1.2009  val_acc=0.7094
+2026-04-28 04:53:03,581  INFO        ep  35/800  tr_loss=0.6739  tr_acc=0.8949  val_loss=1.0847  val_acc=0.7558
+2026-04-28 04:53:07,848  INFO        ep  40/800  tr_loss=0.6229  tr_acc=0.9167  val_loss=1.0906  val_acc=0.7558
+2026-04-28 04:53:12,153  INFO        ep  45/800  tr_loss=0.6024  tr_acc=0.9239  val_loss=1.0507  val_acc=0.7924
+2026-04-28 04:53:16,460  INFO        ep  50/800  tr_loss=0.5711  tr_acc=0.9384  val_loss=1.0048  val_acc=0.7855
+2026-04-28 04:53:20,788  INFO        ep  55/800  tr_loss=0.5763  tr_acc=0.9356  val_loss=0.9899  val_acc=0.7924
+2026-04-28 04:53:25,104  INFO        ep  60/800  tr_loss=0.5467  tr_acc=0.9492  val_loss=1.0347  val_acc=0.7591
+2026-04-28 04:53:29,404  INFO        ep  65/800  tr_loss=0.5463  tr_acc=0.9488  val_loss=1.1322  val_acc=0.7507
+2026-04-28 04:53:33,716  INFO        ep  70/800  tr_loss=0.5342  tr_acc=0.9530  val_loss=0.9213  val_acc=0.8151
+2026-04-28 04:53:38,019  INFO        ep  75/800  tr_loss=0.5307  tr_acc=0.9524  val_loss=1.0697  val_acc=0.7716
+2026-04-28 04:53:42,319  INFO        ep  80/800  tr_loss=0.5091  tr_acc=0.9632  val_loss=1.0849  val_acc=0.7697
+2026-04-28 04:53:46,619  INFO        ep  85/800  tr_loss=0.5057  tr_acc=0.9648  val_loss=0.9786  val_acc=0.8019
+2026-04-28 04:53:50,915  INFO        ep  90/800  tr_loss=0.5369  tr_acc=0.9514  val_loss=1.1473  val_acc=0.7540
+2026-04-28 04:53:55,212  INFO        ep  95/800  tr_loss=0.5014  tr_acc=0.9649  val_loss=1.0122  val_acc=0.7898
+2026-04-28 04:53:59,509  INFO        ep 100/800  tr_loss=0.5006  tr_acc=0.9669  val_loss=1.0353  val_acc=0.7774
+2026-04-28 04:54:03,810  INFO        ep 105/800  tr_loss=0.5046  tr_acc=0.9658  val_loss=1.0381  val_acc=0.7986
+2026-04-28 04:54:08,109  INFO        ep 110/800  tr_loss=0.4910  tr_acc=0.9705  val_loss=0.9369  val_acc=0.8300
+2026-04-28 04:54:12,408  INFO        ep 115/800  tr_loss=0.4798  tr_acc=0.9735  val_loss=0.9571  val_acc=0.8081
+2026-04-28 04:54:16,720  INFO        ep 120/800  tr_loss=0.5001  tr_acc=0.9661  val_loss=0.9822  val_acc=0.7968
+2026-04-28 04:54:21,018  INFO        ep 125/800  tr_loss=0.4871  tr_acc=0.9690  val_loss=0.9537  val_acc=0.7971
+2026-04-28 04:54:25,318  INFO        ep 130/800  tr_loss=0.4587  tr_acc=0.9784  val_loss=0.9474  val_acc=0.8136
+2026-04-28 04:54:29,629  INFO        ep 135/800  tr_loss=0.4780  tr_acc=0.9740  val_loss=0.9755  val_acc=0.8048
+2026-04-28 04:54:33,954  INFO        ep 140/800  tr_loss=0.4634  tr_acc=0.9778  val_loss=0.8412  val_acc=0.8480
+2026-04-28 04:54:38,252  INFO        ep 145/800  tr_loss=0.4814  tr_acc=0.9722  val_loss=0.8647  val_acc=0.8337
+2026-04-28 04:54:42,547  INFO        ep 150/800  tr_loss=0.4734  tr_acc=0.9735  val_loss=0.9196  val_acc=0.8275
+2026-04-28 04:54:46,854  INFO        ep 155/800  tr_loss=0.4585  tr_acc=0.9790  val_loss=0.8351  val_acc=0.8512
+2026-04-28 04:54:51,149  INFO        ep 160/800  tr_loss=0.4516  tr_acc=0.9819  val_loss=0.9247  val_acc=0.8220
+2026-04-28 04:54:55,455  INFO        ep 165/800  tr_loss=0.4609  tr_acc=0.9784  val_loss=0.9756  val_acc=0.8099
+2026-04-28 04:54:59,747  INFO        ep 170/800  tr_loss=0.4786  tr_acc=0.9707  val_loss=0.8510  val_acc=0.8520
+2026-04-28 04:55:04,065  INFO        ep 175/800  tr_loss=0.4727  tr_acc=0.9719  val_loss=0.7974  val_acc=0.8684
+2026-04-28 04:55:08,358  INFO        ep 180/800  tr_loss=0.4457  tr_acc=0.9824  val_loss=0.8314  val_acc=0.8523
+2026-04-28 04:55:12,669  INFO        ep 185/800  tr_loss=0.4543  tr_acc=0.9797  val_loss=0.8761  val_acc=0.8512
+2026-04-28 04:55:16,975  INFO        ep 190/800  tr_loss=0.4543  tr_acc=0.9796  val_loss=0.8778  val_acc=0.8366
+2026-04-28 04:55:21,268  INFO        ep 195/800  tr_loss=0.4701  tr_acc=0.9745  val_loss=0.8515  val_acc=0.8589
+2026-04-28 04:55:25,574  INFO        ep 200/800  tr_loss=0.4465  tr_acc=0.9835  val_loss=0.9014  val_acc=0.8381
+2026-04-28 04:55:29,866  INFO        ep 205/800  tr_loss=0.4508  tr_acc=0.9799  val_loss=0.8124  val_acc=0.8589
+2026-04-28 04:55:34,161  INFO        ep 210/800  tr_loss=0.4304  tr_acc=0.9862  val_loss=0.8169  val_acc=0.8673
+2026-04-28 04:55:38,456  INFO        ep 215/800  tr_loss=0.4570  tr_acc=0.9785  val_loss=0.8655  val_acc=0.8523
+2026-04-28 04:55:42,749  INFO        ep 220/800  tr_loss=0.4649  tr_acc=0.9762  val_loss=0.8025  val_acc=0.8637
+2026-04-28 04:55:47,068  INFO        ep 225/800  tr_loss=0.4158  tr_acc=0.9912  val_loss=0.7756  val_acc=0.8754
+2026-04-28 04:55:51,365  INFO        ep 230/800  tr_loss=0.4439  tr_acc=0.9839  val_loss=0.8017  val_acc=0.8640
+2026-04-28 04:55:55,661  INFO        ep 235/800  tr_loss=0.4310  tr_acc=0.9877  val_loss=0.8074  val_acc=0.8648
+2026-04-28 04:55:59,955  INFO        ep 240/800  tr_loss=0.4392  tr_acc=0.9840  val_loss=0.7928  val_acc=0.8702
+2026-04-28 04:56:04,247  INFO        ep 245/800  tr_loss=0.4625  tr_acc=0.9780  val_loss=0.7881  val_acc=0.8757
+2026-04-28 04:56:08,567  INFO        ep 250/800  tr_loss=0.4323  tr_acc=0.9878  val_loss=0.7790  val_acc=0.8750
+2026-04-28 04:56:12,860  INFO        ep 255/800  tr_loss=0.4214  tr_acc=0.9903  val_loss=0.8043  val_acc=0.8699
+2026-04-28 04:56:17,154  INFO        ep 260/800  tr_loss=0.4350  tr_acc=0.9851  val_loss=0.8443  val_acc=0.8564
+2026-04-28 04:56:21,444  INFO        ep 265/800  tr_loss=0.4471  tr_acc=0.9821  val_loss=0.8001  val_acc=0.8710
+2026-04-28 04:56:25,734  INFO        ep 270/800  tr_loss=0.4229  tr_acc=0.9886  val_loss=0.7797  val_acc=0.8768
+2026-04-28 04:56:30,026  INFO        ep 275/800  tr_loss=0.4163  tr_acc=0.9909  val_loss=0.7848  val_acc=0.8735
+2026-04-28 04:56:34,317  INFO        ep 280/800  tr_loss=0.4338  tr_acc=0.9858  val_loss=0.7975  val_acc=0.8670
+2026-04-28 04:56:38,610  INFO        ep 285/800  tr_loss=0.4377  tr_acc=0.9850  val_loss=0.8367  val_acc=0.8681
+2026-04-28 04:56:42,903  INFO        ep 290/800  tr_loss=0.4206  tr_acc=0.9891  val_loss=0.8211  val_acc=0.8673
+2026-04-28 04:56:47,197  INFO        ep 295/800  tr_loss=0.4131  tr_acc=0.9917  val_loss=0.7767  val_acc=0.8812
+2026-04-28 04:56:51,490  INFO        ep 300/800  tr_loss=0.4251  tr_acc=0.9888  val_loss=0.8346  val_acc=0.8527
+2026-04-28 04:56:55,785  INFO        ep 305/800  tr_loss=0.4133  tr_acc=0.9921  val_loss=0.7979  val_acc=0.8662
+2026-04-28 04:56:58,362  INFO        Early stopping at epoch 308 (patience=60).
+2026-04-28 04:56:58,362  INFO        Fold 2 done  |  best_val_acc=0.8754  |  264.8s
+2026-04-28 04:56:58,363  INFO      
+── Fold 4/5  (test subject = 4) ──
+2026-04-28 04:56:58,536  INFO      Using SpatialNeighborLoss  (CE + L/R penalty lr_w=0.50 + neighbor penalty nb_w=0.30)
+2026-04-28 04:56:59,411  INFO        ep   1/800  tr_loss=2.0103  tr_acc=0.4160  val_loss=1.8219  val_acc=0.4849
+2026-04-28 04:57:02,893  INFO        ep   5/800  tr_loss=1.1514  tr_acc=0.7043  val_loss=1.3596  val_acc=0.6325
+2026-04-28 04:57:07,204  INFO        ep  10/800  tr_loss=0.9431  tr_acc=0.7887  val_loss=1.3007  val_acc=0.6556
+2026-04-28 04:57:11,552  INFO        ep  15/800  tr_loss=0.8052  tr_acc=0.8408  val_loss=1.1516  val_acc=0.7060
+2026-04-28 04:57:15,863  INFO        ep  20/800  tr_loss=0.7630  tr_acc=0.8614  val_loss=1.1376  val_acc=0.7325
+2026-04-28 04:57:20,173  INFO        ep  25/800  tr_loss=0.7042  tr_acc=0.8855  val_loss=1.1707  val_acc=0.7270
+2026-04-28 04:57:24,455  INFO        ep  30/800  tr_loss=0.6669  tr_acc=0.8981  val_loss=1.1254  val_acc=0.7373
+2026-04-28 04:57:28,736  INFO        ep  35/800  tr_loss=0.6462  tr_acc=0.9063  val_loss=1.1349  val_acc=0.7337
+2026-04-28 04:57:33,018  INFO        ep  40/800  tr_loss=0.6078  tr_acc=0.9225  val_loss=1.2072  val_acc=0.7329
+2026-04-28 04:57:37,324  INFO        ep  45/800  tr_loss=0.5800  tr_acc=0.9326  val_loss=1.0119  val_acc=0.7813
+2026-04-28 04:57:41,631  INFO        ep  50/800  tr_loss=0.5649  tr_acc=0.9405  val_loss=1.1621  val_acc=0.7425
+2026-04-28 04:57:45,944  INFO        ep  55/800  tr_loss=0.5492  tr_acc=0.9453  val_loss=1.1586  val_acc=0.7504
+2026-04-28 04:57:50,258  INFO        ep  60/800  tr_loss=0.5288  tr_acc=0.9554  val_loss=1.0918  val_acc=0.7639
+2026-04-28 04:57:54,571  INFO        ep  65/800  tr_loss=0.5237  tr_acc=0.9575  val_loss=1.0426  val_acc=0.7786
+2026-04-28 04:57:58,885  INFO        ep  70/800  tr_loss=0.5123  tr_acc=0.9622  val_loss=1.1606  val_acc=0.7516
+2026-04-28 04:58:03,200  INFO        ep  75/800  tr_loss=0.5090  tr_acc=0.9625  val_loss=1.0822  val_acc=0.7750
+2026-04-28 04:58:07,513  INFO        ep  80/800  tr_loss=0.5073  tr_acc=0.9643  val_loss=1.1755  val_acc=0.7440
+2026-04-28 04:58:11,824  INFO        ep  85/800  tr_loss=0.4926  tr_acc=0.9678  val_loss=1.1467  val_acc=0.7643
+2026-04-28 04:58:16,134  INFO        ep  90/800  tr_loss=0.4905  tr_acc=0.9687  val_loss=1.1590  val_acc=0.7619
+2026-04-28 04:58:20,444  INFO        ep  95/800  tr_loss=0.4861  tr_acc=0.9712  val_loss=1.1202  val_acc=0.7663
+2026-04-28 04:58:24,757  INFO        ep 100/800  tr_loss=0.4822  tr_acc=0.9715  val_loss=1.1609  val_acc=0.7659
+2026-04-28 04:58:29,071  INFO        ep 105/800  tr_loss=0.4806  tr_acc=0.9724  val_loss=1.0628  val_acc=0.7794
+2026-04-28 04:58:29,071  INFO        Early stopping at epoch 105 (patience=60).
+2026-04-28 04:58:29,071  INFO        Fold 3 done  |  best_val_acc=0.7813  |  90.5s
+2026-04-28 04:58:29,071  INFO      
+── Fold 5/5  (test subject = 5) ──
+2026-04-28 04:58:29,249  INFO      Using SpatialNeighborLoss  (CE + L/R penalty lr_w=0.50 + neighbor penalty nb_w=0.30)
+2026-04-28 04:58:30,128  INFO        ep   1/800  tr_loss=2.0716  tr_acc=0.3990  val_loss=1.7952  val_acc=0.4793
+2026-04-28 04:58:33,588  INFO        ep   5/800  tr_loss=1.2228  tr_acc=0.6709  val_loss=1.3246  val_acc=0.6663
+2026-04-28 04:58:37,869  INFO        ep  10/800  tr_loss=0.9696  tr_acc=0.7761  val_loss=1.2140  val_acc=0.7083
+2026-04-28 04:58:42,151  INFO        ep  15/800  tr_loss=0.8594  tr_acc=0.8188  val_loss=1.0103  val_acc=0.7688
+2026-04-28 04:58:46,419  INFO        ep  20/800  tr_loss=0.7647  tr_acc=0.8591  val_loss=1.0451  val_acc=0.7725
+2026-04-28 04:58:50,698  INFO        ep  25/800  tr_loss=0.7269  tr_acc=0.8748  val_loss=1.0151  val_acc=0.7826
+2026-04-28 04:58:54,983  INFO        ep  30/800  tr_loss=0.6740  tr_acc=0.8969  val_loss=0.9495  val_acc=0.8051
+2026-04-28 04:58:59,262  INFO        ep  35/800  tr_loss=0.6397  tr_acc=0.9073  val_loss=0.9125  val_acc=0.8152
+2026-04-28 04:59:03,528  INFO        ep  40/800  tr_loss=0.6113  tr_acc=0.9232  val_loss=1.0542  val_acc=0.7877
+2026-04-28 04:59:07,793  INFO        ep  45/800  tr_loss=0.5874  tr_acc=0.9317  val_loss=0.9751  val_acc=0.8101
+2026-04-28 04:59:12,073  INFO        ep  50/800  tr_loss=0.5569  tr_acc=0.9439  val_loss=1.0301  val_acc=0.7967
+2026-04-28 04:59:16,361  INFO        ep  55/800  tr_loss=0.5486  tr_acc=0.9459  val_loss=0.9155  val_acc=0.8236
+2026-04-28 04:59:20,650  INFO        ep  60/800  tr_loss=0.5440  tr_acc=0.9497  val_loss=0.9757  val_acc=0.8120
+2026-04-28 04:59:24,938  INFO        ep  65/800  tr_loss=0.5280  tr_acc=0.9531  val_loss=0.9022  val_acc=0.8315
+2026-04-28 04:59:29,235  INFO        ep  70/800  tr_loss=0.5154  tr_acc=0.9594  val_loss=0.8814  val_acc=0.8442
+2026-04-28 04:59:33,548  INFO        ep  75/800  tr_loss=0.5067  tr_acc=0.9608  val_loss=0.8549  val_acc=0.8457
+2026-04-28 04:59:37,832  INFO        ep  80/800  tr_loss=0.5025  tr_acc=0.9632  val_loss=1.0169  val_acc=0.8141
+2026-04-28 04:59:42,129  INFO        ep  85/800  tr_loss=0.5033  tr_acc=0.9626  val_loss=0.8357  val_acc=0.8420
+2026-04-28 04:59:46,412  INFO        ep  90/800  tr_loss=0.4858  tr_acc=0.9695  val_loss=0.9049  val_acc=0.8377
+2026-04-28 04:59:50,694  INFO        ep  95/800  tr_loss=0.4841  tr_acc=0.9700  val_loss=0.8828  val_acc=0.8442
+2026-04-28 04:59:54,976  INFO        ep 100/800  tr_loss=0.4726  tr_acc=0.9736  val_loss=0.8675  val_acc=0.8583
+2026-04-28 04:59:59,271  INFO        ep 105/800  tr_loss=0.4836  tr_acc=0.9692  val_loss=0.8582  val_acc=0.8547
+2026-04-28 05:00:03,556  INFO        ep 110/800  tr_loss=0.4738  tr_acc=0.9728  val_loss=0.8239  val_acc=0.8591
+2026-04-28 05:00:07,841  INFO        ep 115/800  tr_loss=0.4637  tr_acc=0.9769  val_loss=0.8965  val_acc=0.8438
+2026-04-28 05:00:12,126  INFO        ep 120/800  tr_loss=0.4617  tr_acc=0.9770  val_loss=0.9441  val_acc=0.8370
+2026-04-28 05:00:16,409  INFO        ep 125/800  tr_loss=0.4606  tr_acc=0.9778  val_loss=0.8364  val_acc=0.8583
+2026-04-28 05:00:20,693  INFO        ep 130/800  tr_loss=0.4577  tr_acc=0.9790  val_loss=0.8371  val_acc=0.8685
+2026-04-28 05:00:24,977  INFO        ep 135/800  tr_loss=0.4588  tr_acc=0.9763  val_loss=0.9114  val_acc=0.8489
+2026-04-28 05:00:29,260  INFO        ep 140/800  tr_loss=0.4403  tr_acc=0.9840  val_loss=0.8803  val_acc=0.8558
+2026-04-28 05:00:33,542  INFO        ep 145/800  tr_loss=0.4482  tr_acc=0.9821  val_loss=0.8815  val_acc=0.8540
+2026-04-28 05:00:37,823  INFO        ep 150/800  tr_loss=0.4527  tr_acc=0.9803  val_loss=0.8889  val_acc=0.8399
+2026-04-28 05:00:42,116  INFO        ep 155/800  tr_loss=0.4446  tr_acc=0.9822  val_loss=0.7788  val_acc=0.8754
+2026-04-28 05:00:46,398  INFO        ep 160/800  tr_loss=0.4440  tr_acc=0.9836  val_loss=0.8047  val_acc=0.8576
+2026-04-28 05:00:50,678  INFO        ep 165/800  tr_loss=0.4381  tr_acc=0.9850  val_loss=0.8236  val_acc=0.8627
+2026-04-28 05:00:54,971  INFO        ep 170/800  tr_loss=0.4380  tr_acc=0.9856  val_loss=0.7787  val_acc=0.8757
+2026-04-28 05:00:59,250  INFO        ep 175/800  tr_loss=0.4354  tr_acc=0.9850  val_loss=0.8930  val_acc=0.8649
+2026-04-28 05:01:03,529  INFO        ep 180/800  tr_loss=0.4410  tr_acc=0.9847  val_loss=0.8330  val_acc=0.8656
+2026-04-28 05:01:07,806  INFO        ep 185/800  tr_loss=0.4370  tr_acc=0.9851  val_loss=0.8333  val_acc=0.8616
+2026-04-28 05:01:12,085  INFO        ep 190/800  tr_loss=0.4294  tr_acc=0.9885  val_loss=0.8958  val_acc=0.8627
+2026-04-28 05:01:16,366  INFO        ep 195/800  tr_loss=0.4304  tr_acc=0.9872  val_loss=0.7778  val_acc=0.8768
+2026-04-28 05:01:20,645  INFO        ep 200/800  tr_loss=0.4236  tr_acc=0.9891  val_loss=0.8590  val_acc=0.8634
+2026-04-28 05:01:24,927  INFO        ep 205/800  tr_loss=0.4404  tr_acc=0.9829  val_loss=0.9033  val_acc=0.8569
+2026-04-28 05:01:29,207  INFO        ep 210/800  tr_loss=0.4442  tr_acc=0.9827  val_loss=0.8428  val_acc=0.8721
+2026-04-28 05:01:33,488  INFO        ep 215/800  tr_loss=0.4264  tr_acc=0.9881  val_loss=0.8431  val_acc=0.8670
+2026-04-28 05:01:37,769  INFO        ep 220/800  tr_loss=0.4202  tr_acc=0.9896  val_loss=0.8199  val_acc=0.8775
+2026-04-28 05:01:42,049  INFO        ep 225/800  tr_loss=0.4247  tr_acc=0.9881  val_loss=0.8375  val_acc=0.8670
+2026-04-28 05:01:43,762  INFO        Early stopping at epoch 227 (patience=60).
+2026-04-28 05:01:43,762  INFO        Fold 4 done  |  best_val_acc=0.8779  |  194.5s
+2026-04-28 05:01:43,763  INFO      
+=== LOSO Complete ===
+2026-04-28 05:01:43,763  INFO         Per-fold:  ['0.8373', '0.7763', '0.8754', '0.7813', '0.8779']
+2026-04-28 05:01:43,763  INFO         Mean acc:  0.8296
+2026-04-28 05:01:43,763  INFO         Results → checkpoints/epoch_sweep/ep800_custom/loso_results.txt

@@ -1,13 +1,13 @@
 {
-  "per_window_accuracy": 0.8791666666666667,
-  "majority_vote_accuracy": 0.3333333333333333,
+  "per_window_accuracy": 0.8875,
+  "majority_vote_accuracy": 0.16666666666666666,
   "vote_k": 5,
   "locked_fraction": 0.025,
   "n_windows": 240,
   "spatial_error": {
-    "mean_m": 0.3592756390571594,
-    "std_m": 0.283693790435791,
-    "n_wrong": 29
+    "mean_m": 0.3234168589115143,
+    "std_m": 0.23533007502555847,
+    "n_wrong": 27
   },
   "symmetry_confusion": [
     {
@@ -20,6 +20,13 @@
     {
       "left": "l_hip",
       "right": "r_hip",
+      "left\u2192right_rate": 0.0999999999,
+      "right\u2192left_rate": 0.0,
+      "symmetric_confusion": 0.04999999995
+    },
+    {
+      "left": "l_hand",
+      "right": "r_hand",
       "left\u2192right_rate": 0.0999999999,
       "right\u2192left_rate": 0.0,
       "symmetric_confusion": 0.04999999995
@@ -65,19 +72,12 @@
       "left\u2192right_rate": 0.0,
       "right\u2192left_rate": 0.0,
       "symmetric_confusion": 0.0
-    },
-    {
-      "left": "l_hand",
-      "right": "r_hand",
-      "left\u2192right_rate": 0.0,
-      "right\u2192left_rate": 0.0,
-      "symmetric_confusion": 0.0
     }
   ],
   "left_right_confusion": {
-    "n_total_errors": 29,
-    "n_lr_errors": 3,
-    "lr_error_pct_of_all_errors": 10.34,
+    "n_total_errors": 27,
+    "n_lr_errors": 4,
+    "lr_error_pct_of_all_errors": 14.81,
     "per_pair": [
       {
         "pair": "l_thigh \u2194 r_thigh",
@@ -89,6 +89,12 @@
         "pair": "l_hip \u2194 r_hip",
         "l_hip\u2192r_hip": 1,
         "r_hip\u2192l_hip": 0,
+        "total_lr_errors": 1
+      },
+      {
+        "pair": "l_hand \u2194 r_hand",
+        "l_hand\u2192r_hand": 1,
+        "r_hand\u2192l_hand": 0,
         "total_lr_errors": 1
       }
     ]

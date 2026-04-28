@@ -1,0 +1,75 @@
+2026-04-28 05:29:18,059  INFO      Device: cuda
+2026-04-28 05:29:18,227  INFO      Loaded checkpoint  arch=resnet  in_channels=9  fold=4  stats=checkpoints/epoch_sweep/best_final/normalization_stats_fold4.pt
+2026-04-28 05:29:18,227  INFO      No --test_subject provided; using checkpoint test_subj=5
+2026-04-28 05:29:19,104  INFO      Filtered to subject 5  →  2760 windows
+2026-04-28 05:29:19,116  INFO      Running inference on 2760 windows …
+2026-04-28 05:29:19,253  INFO      Per-window accuracy: 0.8736
+2026-04-28 05:29:19,258  INFO      Majority-vote accuracy: 0.2881  (locked 2.1% of windows)
+2026-04-28 05:29:19,929  INFO      Confusion matrix saved → results/epoch_sweep/eval_fold4/confusion_matrix.png
+2026-04-28 05:29:19,929  INFO      
+── Symmetry Confusion (top 5) ─────────────────────────────
+2026-04-28 05:29:19,929  INFO        l_thigh        ↔ r_thigh         avg_rate=0.083
+2026-04-28 05:29:19,929  INFO        l_hip          ↔ r_hip           avg_rate=0.030
+2026-04-28 05:29:19,929  INFO        l_shin         ↔ r_shin          avg_rate=0.013
+2026-04-28 05:29:19,929  INFO        l_foot         ↔ r_foot          avg_rate=0.004
+2026-04-28 05:29:19,929  INFO        l_hand         ↔ r_hand          avg_rate=0.004
+2026-04-28 05:29:19,930  INFO      
+── Left-Right Confusion Breakdown ─────────────────────────
+2026-04-28 05:29:19,930  INFO        Total errors      : 349 / 2760  (12.6%)
+2026-04-28 05:29:19,930  INFO        L↔R mirror errors : 31 / 349 errors  (8.9% of all errors)
+2026-04-28 05:29:19,930  INFO        Per symmetric pair (sorted by error count):
+2026-04-28 05:29:19,930  INFO          l_thigh ↔ r_thigh                     total=19
+2026-04-28 05:29:19,930  INFO            l_thigh→r_thigh                          19
+2026-04-28 05:29:19,930  INFO            r_thigh→l_thigh                          0
+2026-04-28 05:29:19,930  INFO          l_hip ↔ r_hip                         total=7
+2026-04-28 05:29:19,930  INFO            l_hip→r_hip                              2
+2026-04-28 05:29:19,930  INFO            r_hip→l_hip                              5
+2026-04-28 05:29:19,930  INFO          l_shin ↔ r_shin                       total=3
+2026-04-28 05:29:19,930  INFO            l_shin→r_shin                            3
+2026-04-28 05:29:19,930  INFO            r_shin→l_shin                            0
+2026-04-28 05:29:19,930  INFO          l_foot ↔ r_foot                       total=1
+2026-04-28 05:29:19,930  INFO            l_foot→r_foot                            1
+2026-04-28 05:29:19,930  INFO            r_foot→l_foot                            0
+2026-04-28 05:29:19,930  INFO          l_hand ↔ r_hand                       total=1
+2026-04-28 05:29:19,930  INFO            l_hand→r_hand                            1
+2026-04-28 05:29:19,930  INFO            r_hand→l_hand                            0
+2026-04-28 05:29:19,930  INFO      
+── Spatial Error (mis-classified samples) ─────────────────
+2026-04-28 05:29:19,930  INFO        N wrong      : 349 / 2760  (12.6%)
+2026-04-28 05:29:19,930  INFO        Mean error   : 0.3110 m
+2026-04-28 05:29:19,930  INFO        Std error    : 0.2035 m
+2026-04-28 05:29:19,933  INFO      
+── Classification Report ───────────────────────────────────
+              precision    recall  f1-score   support
+
+      pelvis       1.00      1.00      1.00       115
+       l_hip       0.96      0.97      0.97       115
+       r_hip       0.98      0.95      0.96       115
+ spine_lower       0.99      1.00      1.00       115
+     l_thigh       0.95      0.82      0.88       115
+     r_thigh       0.73      0.94      0.82       115
+   spine_mid       0.97      1.00      0.99       115
+      l_shin       0.96      0.90      0.93       115
+      r_shin       0.82      0.87      0.84       115
+ spine_upper       0.97      0.86      0.91       115
+      l_foot       0.98      0.83      0.90       115
+      r_foot       0.92      0.94      0.93       115
+        neck       0.96      0.83      0.89       115
+    l_collar       0.98      1.00      0.99       115
+    r_collar       0.98      0.97      0.98       115
+        head       0.81      0.94      0.87       115
+  l_shoulder       0.91      0.91      0.91       115
+  r_shoulder       0.97      0.94      0.96       115
+ l_upper_arm       0.77      0.72      0.74       115
+ r_upper_arm       0.64      0.77      0.70       115
+   l_forearm       0.81      0.55      0.65       115
+   r_forearm       0.68      0.60      0.64       115
+      l_hand       0.60      0.85      0.71       115
+      r_hand       0.81      0.80      0.80       115
+
+    accuracy                           0.87      2760
+   macro avg       0.88      0.87      0.87      2760
+weighted avg       0.88      0.87      0.87      2760
+
+2026-04-28 05:29:19,936  INFO      
+✓ Evaluation complete.  Summary saved → results/epoch_sweep/eval_fold4/eval_summary.json

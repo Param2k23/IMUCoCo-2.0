@@ -1,42 +1,49 @@
 {
-  "per_window_accuracy": 0.8778985507246376,
-  "majority_vote_accuracy": 0.3469387755102041,
+  "per_window_accuracy": 0.8735507246376811,
+  "majority_vote_accuracy": 0.288135593220339,
   "vote_k": 5,
-  "locked_fraction": 0.017753623188405798,
+  "locked_fraction": 0.021376811594202894,
   "n_windows": 2760,
   "spatial_error": {
-    "mean_m": 0.27876490354537964,
-    "std_m": 0.1681898534297943,
-    "n_wrong": 337
+    "mean_m": 0.31100189685821533,
+    "std_m": 0.20353032648563385,
+    "n_wrong": 349
   },
   "symmetry_confusion": [
     {
-      "left": "l_hip",
-      "right": "r_hip",
-      "left\u2192right_rate": 0.0347826086926276,
-      "right\u2192left_rate": 0.1391304347705104,
-      "symmetric_confusion": 0.08695652173156901
-    },
-    {
       "left": "l_thigh",
       "right": "r_thigh",
-      "left\u2192right_rate": 0.1391304347705104,
-      "right\u2192left_rate": 0.0086956521731569,
-      "symmetric_confusion": 0.07391304347183365
+      "left\u2192right_rate": 0.1652173912899811,
+      "right\u2192left_rate": 0.0,
+      "symmetric_confusion": 0.08260869564499056
+    },
+    {
+      "left": "l_hip",
+      "right": "r_hip",
+      "left\u2192right_rate": 0.0173913043463138,
+      "right\u2192left_rate": 0.043478260865784504,
+      "symmetric_confusion": 0.030434782606049152
     },
     {
       "left": "l_shin",
       "right": "r_shin",
-      "left\u2192right_rate": 0.0,
-      "right\u2192left_rate": 0.0086956521731569,
-      "symmetric_confusion": 0.00434782608657845
+      "left\u2192right_rate": 0.0260869565194707,
+      "right\u2192left_rate": 0.0,
+      "symmetric_confusion": 0.01304347825973535
     },
     {
       "left": "l_foot",
       "right": "r_foot",
-      "left\u2192right_rate": 0.0,
+      "left\u2192right_rate": 0.0086956521731569,
       "right\u2192left_rate": 0.0,
-      "symmetric_confusion": 0.0
+      "symmetric_confusion": 0.00434782608657845
+    },
+    {
+      "left": "l_hand",
+      "right": "r_hand",
+      "left\u2192right_rate": 0.0086956521731569,
+      "right\u2192left_rate": 0.0,
+      "symmetric_confusion": 0.00434782608657845
     },
     {
       "left": "l_collar",
@@ -65,36 +72,41 @@
       "left\u2192right_rate": 0.0,
       "right\u2192left_rate": 0.0,
       "symmetric_confusion": 0.0
-    },
-    {
-      "left": "l_hand",
-      "right": "r_hand",
-      "left\u2192right_rate": 0.0,
-      "right\u2192left_rate": 0.0,
-      "symmetric_confusion": 0.0
     }
   ],
   "left_right_confusion": {
-    "n_total_errors": 337,
-    "n_lr_errors": 38,
-    "lr_error_pct_of_all_errors": 11.28,
+    "n_total_errors": 349,
+    "n_lr_errors": 31,
+    "lr_error_pct_of_all_errors": 8.88,
     "per_pair": [
       {
-        "pair": "l_hip \u2194 r_hip",
-        "l_hip\u2192r_hip": 4,
-        "r_hip\u2192l_hip": 16,
-        "total_lr_errors": 20
+        "pair": "l_thigh \u2194 r_thigh",
+        "l_thigh\u2192r_thigh": 19,
+        "r_thigh\u2192l_thigh": 0,
+        "total_lr_errors": 19
       },
       {
-        "pair": "l_thigh \u2194 r_thigh",
-        "l_thigh\u2192r_thigh": 16,
-        "r_thigh\u2192l_thigh": 1,
-        "total_lr_errors": 17
+        "pair": "l_hip \u2194 r_hip",
+        "l_hip\u2192r_hip": 2,
+        "r_hip\u2192l_hip": 5,
+        "total_lr_errors": 7
       },
       {
         "pair": "l_shin \u2194 r_shin",
-        "l_shin\u2192r_shin": 0,
-        "r_shin\u2192l_shin": 1,
+        "l_shin\u2192r_shin": 3,
+        "r_shin\u2192l_shin": 0,
+        "total_lr_errors": 3
+      },
+      {
+        "pair": "l_foot \u2194 r_foot",
+        "l_foot\u2192r_foot": 1,
+        "r_foot\u2192l_foot": 0,
+        "total_lr_errors": 1
+      },
+      {
+        "pair": "l_hand \u2194 r_hand",
+        "l_hand\u2192r_hand": 1,
+        "r_hand\u2192l_hand": 0,
         "total_lr_errors": 1
       }
     ]

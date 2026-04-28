@@ -1,28 +1,35 @@
 {
-  "per_window_accuracy": 0.8448275862068966,
-  "majority_vote_accuracy": 0.06557377049180328,
+  "per_window_accuracy": 0.6073994252873564,
+  "majority_vote_accuracy": 0.058823529411764705,
   "vote_k": 5,
-  "locked_fraction": 0.021910919540229886,
+  "locked_fraction": 0.05495689655172414,
   "n_windows": 2784,
   "spatial_error": {
-    "mean_m": 0.2796538174152374,
-    "std_m": 0.16220426559448242,
-    "n_wrong": 432
+    "mean_m": 0.321054071187973,
+    "std_m": 0.23095464706420898,
+    "n_wrong": 1093
   },
   "symmetry_confusion": [
     {
       "left": "l_hip",
       "right": "r_hip",
-      "left\u2192right_rate": 0.18103448274301429,
+      "left\u2192right_rate": 0.22413793101516052,
       "right\u2192left_rate": 0.034482758617717005,
-      "symmetric_confusion": 0.10775862068036565
+      "symmetric_confusion": 0.12931034481643877
     },
     {
       "left": "l_thigh",
       "right": "r_thigh",
-      "left\u2192right_rate": 0.04310344827214626,
-      "right\u2192left_rate": 0.10344827585315101,
-      "symmetric_confusion": 0.07327586206264863
+      "left\u2192right_rate": 0.017241379308858502,
+      "right\u2192left_rate": 0.17241379308858504,
+      "symmetric_confusion": 0.09482758619872177
+    },
+    {
+      "left": "l_upper_arm",
+      "right": "r_upper_arm",
+      "left\u2192right_rate": 0.008620689654429251,
+      "right\u2192left_rate": 0.0,
+      "symmetric_confusion": 0.004310344827214626
     },
     {
       "left": "l_hand",
@@ -60,13 +67,6 @@
       "symmetric_confusion": 0.0
     },
     {
-      "left": "l_upper_arm",
-      "right": "r_upper_arm",
-      "left\u2192right_rate": 0.0,
-      "right\u2192left_rate": 0.0,
-      "symmetric_confusion": 0.0
-    },
-    {
       "left": "l_forearm",
       "right": "r_forearm",
       "left\u2192right_rate": 0.0,
@@ -75,21 +75,27 @@
     }
   ],
   "left_right_confusion": {
-    "n_total_errors": 432,
-    "n_lr_errors": 43,
-    "lr_error_pct_of_all_errors": 9.95,
+    "n_total_errors": 1093,
+    "n_lr_errors": 54,
+    "lr_error_pct_of_all_errors": 4.94,
     "per_pair": [
       {
         "pair": "l_hip \u2194 r_hip",
-        "l_hip\u2192r_hip": 21,
+        "l_hip\u2192r_hip": 26,
         "r_hip\u2192l_hip": 4,
-        "total_lr_errors": 25
+        "total_lr_errors": 30
       },
       {
         "pair": "l_thigh \u2194 r_thigh",
-        "l_thigh\u2192r_thigh": 5,
-        "r_thigh\u2192l_thigh": 12,
-        "total_lr_errors": 17
+        "l_thigh\u2192r_thigh": 2,
+        "r_thigh\u2192l_thigh": 20,
+        "total_lr_errors": 22
+      },
+      {
+        "pair": "l_upper_arm \u2194 r_upper_arm",
+        "l_upper_arm\u2192r_upper_arm": 1,
+        "r_upper_arm\u2192l_upper_arm": 0,
+        "total_lr_errors": 1
       },
       {
         "pair": "l_hand \u2194 r_hand",
