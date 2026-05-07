@@ -1,0 +1,293 @@
+{
+  "total_windows": 21696,
+  "total_errors": 2931,
+  "total_lr_errors": 243,
+  "total_nonlr_errors": 2688,
+  "lr_pct_of_errors": 8.29,
+  "nonlr_pct_of_errors": 91.71,
+  "top_nonlr_pairs": [
+    {
+      "pair": "r_forearm -> r_upper_arm",
+      "total_count": 211,
+      "pct_of_all_errors": 7.2
+    },
+    {
+      "pair": "l_forearm -> l_upper_arm",
+      "total_count": 143,
+      "pct_of_all_errors": 4.88
+    },
+    {
+      "pair": "r_upper_arm -> r_forearm",
+      "total_count": 139,
+      "pct_of_all_errors": 4.74
+    },
+    {
+      "pair": "l_forearm -> l_hand",
+      "total_count": 133,
+      "pct_of_all_errors": 4.54
+    },
+    {
+      "pair": "l_upper_arm -> l_forearm",
+      "total_count": 116,
+      "pct_of_all_errors": 3.96
+    },
+    {
+      "pair": "r_forearm -> r_hand",
+      "total_count": 107,
+      "pct_of_all_errors": 3.65
+    },
+    {
+      "pair": "r_hand -> r_forearm",
+      "total_count": 97,
+      "pct_of_all_errors": 3.31
+    },
+    {
+      "pair": "l_hand -> l_forearm",
+      "total_count": 90,
+      "pct_of_all_errors": 3.07
+    },
+    {
+      "pair": "l_upper_arm -> l_shoulder",
+      "total_count": 53,
+      "pct_of_all_errors": 1.81
+    },
+    {
+      "pair": "l_hand -> l_upper_arm",
+      "total_count": 42,
+      "pct_of_all_errors": 1.43
+    },
+    {
+      "pair": "r_hand -> r_upper_arm",
+      "total_count": 38,
+      "pct_of_all_errors": 1.3
+    },
+    {
+      "pair": "l_foot -> r_shin",
+      "total_count": 33,
+      "pct_of_all_errors": 1.13
+    },
+    {
+      "pair": "r_thigh -> r_shin",
+      "total_count": 32,
+      "pct_of_all_errors": 1.09
+    },
+    {
+      "pair": "r_upper_arm -> r_shoulder",
+      "total_count": 31,
+      "pct_of_all_errors": 1.06
+    },
+    {
+      "pair": "r_upper_arm -> r_hand",
+      "total_count": 25,
+      "pct_of_all_errors": 0.85
+    },
+    {
+      "pair": "r_foot -> l_shin",
+      "total_count": 20,
+      "pct_of_all_errors": 0.68
+    },
+    {
+      "pair": "l_upper_arm -> l_hand",
+      "total_count": 20,
+      "pct_of_all_errors": 0.68
+    },
+    {
+      "pair": "l_thigh -> l_shin",
+      "total_count": 17,
+      "pct_of_all_errors": 0.58
+    },
+    {
+      "pair": "l_thigh -> l_foot",
+      "total_count": 16,
+      "pct_of_all_errors": 0.55
+    },
+    {
+      "pair": "r_hip -> r_shoulder",
+      "total_count": 16,
+      "pct_of_all_errors": 0.55
+    },
+    {
+      "pair": "r_shin -> l_foot",
+      "total_count": 16,
+      "pct_of_all_errors": 0.55
+    },
+    {
+      "pair": "r_thigh -> spine_upper",
+      "total_count": 16,
+      "pct_of_all_errors": 0.55
+    },
+    {
+      "pair": "r_shoulder -> r_upper_arm",
+      "total_count": 15,
+      "pct_of_all_errors": 0.51
+    },
+    {
+      "pair": "r_shin -> l_thigh",
+      "total_count": 13,
+      "pct_of_all_errors": 0.44
+    },
+    {
+      "pair": "r_shin -> r_thigh",
+      "total_count": 12,
+      "pct_of_all_errors": 0.41
+    },
+    {
+      "pair": "l_thigh -> r_shin",
+      "total_count": 11,
+      "pct_of_all_errors": 0.38
+    },
+    {
+      "pair": "head -> spine_upper",
+      "total_count": 11,
+      "pct_of_all_errors": 0.38
+    },
+    {
+      "pair": "neck -> head",
+      "total_count": 10,
+      "pct_of_all_errors": 0.34
+    },
+    {
+      "pair": "head -> neck",
+      "total_count": 10,
+      "pct_of_all_errors": 0.34
+    },
+    {
+      "pair": "l_shoulder -> l_upper_arm",
+      "total_count": 7,
+      "pct_of_all_errors": 0.24
+    },
+    {
+      "pair": "r_foot -> r_shin",
+      "total_count": 7,
+      "pct_of_all_errors": 0.24
+    },
+    {
+      "pair": "neck -> spine_lower",
+      "total_count": 7,
+      "pct_of_all_errors": 0.24
+    },
+    {
+      "pair": "l_shoulder -> l_hand",
+      "total_count": 2,
+      "pct_of_all_errors": 0.07
+    },
+    {
+      "pair": "l_upper_arm -> r_hand",
+      "total_count": 2,
+      "pct_of_all_errors": 0.07
+    },
+    {
+      "pair": "neck -> r_collar",
+      "total_count": 1,
+      "pct_of_all_errors": 0.03
+    },
+    {
+      "pair": "r_shoulder -> r_collar",
+      "total_count": 1,
+      "pct_of_all_errors": 0.03
+    },
+    {
+      "pair": "l_thigh -> r_foot",
+      "total_count": 1,
+      "pct_of_all_errors": 0.03
+    },
+    {
+      "pair": "l_shin -> l_thigh",
+      "total_count": 1,
+      "pct_of_all_errors": 0.03
+    }
+  ],
+  "lr_pair_totals": {
+    "l_hip \u2194 r_hip": 134,
+    "l_thigh \u2194 r_thigh": 80,
+    "l_collar \u2194 r_collar": 7,
+    "l_forearm \u2194 r_forearm": 6,
+    "l_shin \u2194 r_shin": 5,
+    "l_upper_arm \u2194 r_upper_arm": 4,
+    "l_hand \u2194 r_hand": 3,
+    "l_foot \u2194 r_foot": 3,
+    "l_shoulder \u2194 r_shoulder": 1
+  },
+  "per_fold": [
+    {
+      "fold": "fold0",
+      "n_windows": 2784,
+      "acc": 0.8283,
+      "total_errors": 478,
+      "lr_errors": 68,
+      "lr_pct": 14.2
+    },
+    {
+      "fold": "fold1",
+      "n_windows": 2664,
+      "acc": 0.8397,
+      "total_errors": 427,
+      "lr_errors": 42,
+      "lr_pct": 9.8
+    },
+    {
+      "fold": "fold2",
+      "n_windows": 2736,
+      "acc": 0.8958,
+      "total_errors": 285,
+      "lr_errors": 9,
+      "lr_pct": 3.2
+    },
+    {
+      "fold": "fold3",
+      "n_windows": 2520,
+      "acc": 0.8587,
+      "total_errors": 356,
+      "lr_errors": 5,
+      "lr_pct": 1.4
+    },
+    {
+      "fold": "fold4",
+      "n_windows": 2760,
+      "acc": 0.892,
+      "total_errors": 298,
+      "lr_errors": 32,
+      "lr_pct": 10.7
+    },
+    {
+      "fold": "fold5",
+      "n_windows": 2736,
+      "acc": 0.8238,
+      "total_errors": 482,
+      "lr_errors": 15,
+      "lr_pct": 3.1
+    },
+    {
+      "fold": "fold6",
+      "n_windows": 2496,
+      "acc": 0.9083,
+      "total_errors": 229,
+      "lr_errors": 30,
+      "lr_pct": 13.1
+    },
+    {
+      "fold": "fold7",
+      "n_windows": 2544,
+      "acc": 0.8734,
+      "total_errors": 322,
+      "lr_errors": 37,
+      "lr_pct": 11.5
+    },
+    {
+      "fold": "fold8",
+      "n_windows": 216,
+      "acc": 0.8935,
+      "total_errors": 23,
+      "lr_errors": 2,
+      "lr_pct": 8.7
+    },
+    {
+      "fold": "fold9",
+      "n_windows": 240,
+      "acc": 0.8708,
+      "total_errors": 31,
+      "lr_errors": 3,
+      "lr_pct": 9.7
+    }
+  ]
+}
