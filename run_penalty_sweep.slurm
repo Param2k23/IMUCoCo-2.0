@@ -479,15 +479,140 @@ print(p.read_text())
 PY
 
 # =============================================================================
+# STEP 6 — evaluate.py on every fold checkpoint of the best-final run
+#   Produces per-fold:
+#     results/penalty_sweep/eval_fold<N>/eval_summary.json
+#       → includes confusion_matrix (24×24) + top_confused_pairs (non-L/R top-10)
+#     results/penalty_sweep/eval_fold<N>/confusion_matrix.png
+# =============================================================================
+echo ""
+echo "[penalty] ── STEP 6/6: evaluate.py on all best-final fold checkpoints ────"
+mkdir -p results/penalty_sweep
+
+N_CKPTS=$(ls "$BEST_OUT"/best_model_fold*.pt 2>/dev/null | wc -l)
+echo "[penalty] found $N_CKPTS fold checkpoints in $BEST_OUT"
+
+if [[ "$N_CKPTS" -eq 0 ]]; then
+  echo "[penalty] WARNING: no fold checkpoints found — skipping evaluate step"
+else
+  for CKPT in "$BEST_OUT"/best_model_fold*.pt; do
+    FOLD_ID=$(echo "$CKPT" | grep -oP '(?<=fold)\d+')
+    EVAL_OUT="results/penalty_sweep/eval_fold${FOLD_ID}"
+    mkdir -p "$EVAL_OUT"
+    echo "[penalty]   evaluating fold $FOLD_ID → $EVAL_OUT"
+
+    "$PYTHON_BIN" evaluate.py \
+      --checkpoint "$CKPT" \
+      --data       data/processed/penalty_sweep_dataset.npz \
+      --out_dir    "$EVAL_OUT" \
+      --vote_k     "$VOTE_K" \
+      --batch_size 512 \
+      2>&1 | tee "logs/eval_penalty_fold${FOLD_ID}.log"
+  done
+fi
+
+# Aggregate top confused pairs across all folds
+echo ""
+echo "[penalty] ── Aggregating non-L/R confused pairs across folds ────────────"
+"$PYTHON_BIN" - <<'PY'
+import json
+from pathlib import Path
+from collections import defaultdict
+
+eval_dirs = sorted(Path("results/penalty_sweep").glob("eval_fold*"))
+if not eval_dirs:
+    print("[penalty] No eval_fold* dirs found — skipping aggregation.")
+    raise SystemExit(0)
+
+pair_counts = defaultdict(int)   # "true -> predicted" -> total count across folds
+lr_totals   = defaultdict(int)   # L/R pair -> total
+fold_rows   = []
+
+for d in eval_dirs:
+    j = d / "eval_summary.json"
+    if not j.exists():
+        print(f"  [warn] missing {j}")
+        continue
+    data = json.loads(j.read_text())
+
+    # Non-L/R top confused pairs
+    for p in data.get("top_confused_pairs", []):
+        key = f"{p['true']} -> {p['predicted']}"
+        pair_counts[key] += p["count"]
+
+    # L/R errors
+    lr = data.get("left_right_confusion", {})
+    for pp in lr.get("per_pair", []):
+        lr_totals[pp["pair"]] += pp["total_lr_errors"]
+
+    fold_rows.append({
+        "fold" : d.name,
+        "acc"  : data.get("per_window_accuracy", 0),
+        "n_w"  : data.get("n_windows", 0),
+        "n_e"  : lr.get("n_total_errors", 0),
+        "lr_e" : lr.get("n_lr_errors", 0),
+    })
+
+# Print per-fold table
+print(f"\n{'Fold':<15} {'Windows':>8} {'Acc':>7} {'Errors':>8} {'L/R Err':>8}")
+print("-" * 52)
+for f in fold_rows:
+    print(f"  {f['fold']:<13} {f['n_w']:>8} {f['acc']:>7.4f} {f['n_e']:>8} {f['lr_e']:>8}")
+
+# Top-20 non-L/R confused pairs
+print()
+print("  Top-20 non-L/R confused pairs (aggregated across folds):")
+print(f"  {'Pair':<40} {'Total errors':>13}")
+print("  " + "-" * 55)
+for pair, cnt in sorted(pair_counts.items(), key=lambda x: -x[1])[:20]:
+    print(f"    {pair:<38} {cnt:>13}")
+
+# L/R breakdown
+if lr_totals:
+    total_lr = sum(lr_totals.values())
+    print()
+    print(f"  L/R mirror errors (total={total_lr}):")
+    for pair, cnt in sorted(lr_totals.items(), key=lambda x: -x[1]):
+        print(f"    {pair:<38} {cnt:>8}")
+
+# Save aggregate JSON
+agg = {
+    "top_nonlr_pairs": [
+        {"pair": k, "total_count": v}
+        for k, v in sorted(pair_counts.items(), key=lambda x: -x[1])
+    ],
+    "lr_pair_totals": dict(sorted(lr_totals.items(), key=lambda x: -x[1])),
+    "per_fold": fold_rows,
+}
+out = Path("results/penalty_sweep/confusion_aggregate.json")
+out.write_text(json.dumps(agg, indent=2))
+print(f"\n  Aggregate saved -> {out}")
+PY
+
+# =============================================================================
 # Done
 # =============================================================================
 echo ""
 echo "============================================================"
-echo "[penalty] Artefacts:"
-echo "  Leaderboard  : results/penalty_sweep/leaderboard.csv"
-echo "  Best config  : results/penalty_sweep/best_config.env"
-echo "  Final ckpts  : checkpoints/penalty_sweep/best_final/"
-echo "  Train logs   : logs/train_ph*.log"
-echo "  Slurm log    : logs/slurm_imu_penalty_sweep_${SLURM_JOB_ID:-local}.out"
-echo "[penalty] finished: $(date)"
+echo "[penalty] Artefacts to pull from server:"
+echo ""
+echo "  ── Sweep summary (essential) ───────────────────────────"
+echo "  results/penalty_sweep/leaderboard.csv"
+echo "  results/penalty_sweep/best_config.env"
+echo "  results/penalty_sweep/confusion_aggregate.json"
+echo ""
+echo "  ── Per-fold evaluation (essential) ─────────────────────"
+echo "  results/penalty_sweep/eval_fold*/eval_summary.json"
+echo "  results/penalty_sweep/eval_fold*/confusion_matrix.png"
+echo ""
+echo "  ── Slurm + train logs (for debugging) ──────────────────"
+echo "  logs/slurm_imu_penalty_sweep_${SLURM_JOB_ID:-local}.out"
+echo "  logs/slurm_imu_penalty_sweep_${SLURM_JOB_ID:-local}.err"
+echo "  logs/train_ph*.log"
+echo "  logs/eval_penalty_fold*.log"
+echo ""
+echo "  ── Best model checkpoints (optional, large) ────────────"
+echo "  checkpoints/penalty_sweep/best_final/loso_results.txt"
+echo "  checkpoints/penalty_sweep/best_final/best_model_fold*.pt"
 echo "============================================================"
+echo "[penalty] finished: $(date)"
