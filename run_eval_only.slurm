@@ -60,6 +60,9 @@ OUT_DIR="${OUT_DIR:-results/penalty_sweep/eval_best_final}"
 
 VOTE_K="${VOTE_K:-5}"
 BATCH_SIZE="${BATCH_SIZE:-512}"
+# base_filters of the trained model — 0 = auto-detect from normalization stats.
+# Set to 128 for checkpoints trained with --base_filters 128 that predate the fix.
+BASE_FILTERS="${BASE_FILTERS:-128}"
 
 mkdir -p logs "$OUT_DIR"
 
@@ -69,7 +72,7 @@ echo "[eval] python     : $PYTHON_BIN"
 echo "[eval] ckpt_dir   : $CKPT_DIR"
 echo "[eval] data       : $DATA_NPZ"
 echo "[eval] out_dir    : $OUT_DIR"
-echo "[eval] vote_k     : $VOTE_K  batch_size=$BATCH_SIZE"
+echo "[eval] vote_k     : $VOTE_K  batch_size=$BATCH_SIZE  base_filters=$BASE_FILTERS"
 echo "[eval] started    : $(date)"
 echo "============================================================"
 
@@ -100,11 +103,12 @@ for CKPT in "$CKPT_DIR"/best_model_fold*.pt; do
   echo "[eval] ── fold $FOLD_ID  →  $FOLD_OUT"
 
   "$PYTHON_BIN" evaluate.py \
-    --checkpoint "$CKPT" \
-    --data       "$DATA_NPZ" \
-    --out_dir    "$FOLD_OUT" \
-    --vote_k     "$VOTE_K" \
-    --batch_size "$BATCH_SIZE" \
+    --checkpoint  "$CKPT" \
+    --data        "$DATA_NPZ" \
+    --out_dir     "$FOLD_OUT" \
+    --vote_k      "$VOTE_K" \
+    --batch_size  "$BATCH_SIZE" \
+    --base_filters "$BASE_FILTERS" \
     2>&1 | tee "logs/eval_only_fold${FOLD_ID}.log"
 done
 

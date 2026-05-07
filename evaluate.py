@@ -71,8 +71,8 @@ def _stats_path_for_checkpoint(ckpt_path: str) -> str:
 
 
 def load_model(
-    ckpt_path: str, device: torch.device
-) -> tuple[torch.nn.Module, int, np.ndarray, np.ndarray, int, str]:
+    ckpt_path: str, device: torch.device, base_filters_override: int = 0
+) -> tuple[torch.nn.Module, int, np.ndarray, np.ndarray, int, str, int]:
     state_dict = torch.load(ckpt_path, map_location=device, weights_only=True)
     stats_path = _stats_path_for_checkpoint(ckpt_path)
     if not os.path.isfile(stats_path):
@@ -96,19 +96,33 @@ def load_model(
             f"Invalid normalization stat shapes. mean={mean.shape}, std={std.shape}, expected (1,{in_channels},1)."
         )
 
-    model = build_model(arch, n_classes=NUM_REGIONS, in_channels=in_channels).to(device)
+    # base_filters: prefer CLI override > saved in stats > default 64
+    if base_filters_override > 0:
+        base_filters = base_filters_override
+        log.info("base_filters=%d (from --base_filters override)", base_filters)
+    elif "base_filters" in stats:
+        base_filters = int(stats["base_filters"])
+        log.info("base_filters=%d (from normalization stats)", base_filters)
+    else:
+        base_filters = 64
+        log.warning(
+            "base_filters not found in stats — defaulting to 64. "
+            "If the model was trained with --base_filters 128, pass --base_filters 128."
+        )
+
+    model = build_model(
+        arch, n_classes=NUM_REGIONS, in_channels=in_channels,
+        base_filters=base_filters,
+    ).to(device)
     model.load_state_dict(state_dict)
     model.eval()
     fold = stats.get("fold", "?")
     test_subj = int(stats.get("test_subj", -1))
     log.info(
-        "Loaded checkpoint  arch=%s  in_channels=%d  fold=%s  stats=%s",
-        arch,
-        in_channels,
-        fold,
-        stats_path,
+        "Loaded checkpoint  arch=%s  in_channels=%d  base_filters=%d  fold=%s",
+        arch, in_channels, base_filters, fold,
     )
-    return model, in_channels, mean, std, test_subj, arch
+    return model, in_channels, mean, std, test_subj, arch, base_filters
 
 
 def load_test_data(
@@ -379,8 +393,8 @@ def run_evaluation(args) -> None:
     log.info("Device: %s", device)
 
     # ── Load model & data ────────────────────────────────────────────────
-    model, ckpt_in_channels, norm_mean, norm_std, ckpt_test_subj, _ = load_model(
-        args.checkpoint, device
+    model, ckpt_in_channels, norm_mean, norm_std, ckpt_test_subj, _, _ = load_model(
+        args.checkpoint, device, base_filters_override=args.base_filters
     )
 
     # If checkpoint has a fold/subject, optionally filter to that subject
@@ -562,6 +576,13 @@ def parse_args():
         type=int,
         default=-1,
         help="If >= 0, filter data to this subject id only",
+    )
+    p.add_argument(
+        "--base_filters",
+        type=int,
+        default=0,
+        help="Override base_filters for model architecture (0 = auto-detect from stats). "
+             "Use 128 for checkpoints trained with --base_filters 128 that predate this fix.",
     )
     p.add_argument(
         "--smoke", action="store_true", help="Run internal self-tests and exit"

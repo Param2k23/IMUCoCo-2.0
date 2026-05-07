@@ -228,6 +228,7 @@ def _save_norm_stats(
     arch: str,
     fold: int,
     test_subj: int,
+    base_filters: int = 64,
 ) -> None:
     torch.save(
         {
@@ -237,6 +238,7 @@ def _save_norm_stats(
             "arch": arch,
             "fold": int(fold),
             "test_subj": int(test_subj),
+            "base_filters": int(base_filters),
         },
         path,
     )
@@ -260,9 +262,60 @@ def wrap_data_parallel(
     return nn.DataParallel(model)
 
 
-def make_loaders(X_tr, y_tr, X_val, y_val, batch_size: int):
-    tr_ds = TensorDataset(torch.from_numpy(X_tr), torch.from_numpy(y_tr))
-    val_ds = TensorDataset(torch.from_numpy(X_val), torch.from_numpy(y_val))
+class IMUAugDataset(torch.utils.data.Dataset):
+    """
+    Training-time augmentation for IMU windows  shape (N, C, T).
+
+    Three independent transforms applied per sample:
+    1. Gaussian noise      — small random additive noise (sigma=0.02 of signal std)
+       Rationale: makes model robust to sensor hardware variation between subjects
+    2. Random axis-flip   — negate one of the 3 accel or 3 gyro axes with p=0.5
+       Rationale: directly simulates wearing the sensor on the other side of the
+       body (left vs right), which is the dominant remaining error class
+    3. Amplitude scaling  — multiply by U(0.9, 1.1)
+       Rationale: subjects differ in body-mass / stride amplitude; this makes
+       the model invariant to inter-subject scale differences
+
+    Only applied to the TRAINING set — val/test always gets clean data.
+    """
+
+    # IMU channel layout assumed: [acc_x, acc_y, acc_z, gyr_x, gyr_y, gyr_z, ...]
+    FLIP_CANDIDATES = [0, 1, 2, 3, 4, 5]   # first 6 channels (accel + gyro axes)
+
+    def __init__(self, X: np.ndarray, y: np.ndarray, augment: bool = True):
+        self.X       = torch.from_numpy(X)       # (N, C, T) float32
+        self.y       = torch.from_numpy(y)        # (N,)      int64
+        self.augment = augment
+        # Pre-compute per-channel std for noise scaling
+        self.noise_sigma = float(X.std()) * 0.02  # 2% of global std
+
+    def __len__(self) -> int:
+        return len(self.y)
+
+    def __getitem__(self, idx: int):
+        x = self.X[idx].clone()   # (C, T)
+
+        if self.augment:
+            # 1. Gaussian noise
+            x = x + torch.randn_like(x) * self.noise_sigma
+
+            # 2. Random axis-flip (each candidate axis independently, p=0.15 each)
+            for ch in self.FLIP_CANDIDATES:
+                if torch.rand(1).item() < 0.15:
+                    x[ch] = -x[ch]
+
+            # 3. Amplitude scaling
+            scale = 0.9 + torch.rand(1).item() * 0.2   # U(0.9, 1.1)
+            x = x * scale
+
+        return x, self.y[idx]
+
+
+def make_loaders(
+    X_tr, y_tr, X_val, y_val, batch_size: int, augment: bool = True
+):
+    tr_ds  = IMUAugDataset(X_tr, y_tr, augment=augment)
+    val_ds = IMUAugDataset(X_val, y_val, augment=False)   # always clean
     tr_dl = DataLoader(
         tr_ds, batch_size=batch_size, shuffle=True, num_workers=0, pin_memory=False
     )
@@ -364,6 +417,7 @@ def loso_train(
     neighbor_weight: float = 0.3,
     class_weights_mode: str = "none",
     base_filters: int = 64,
+    augment: bool = True,
 ) -> List[float]:
     """
     Leave-One-Subject-Out cross-validation.
@@ -410,6 +464,7 @@ def loso_train(
                 X_val_n,
                 y_val.astype(np.int64),
                 batch_size,
+                augment=augment,
             )
 
             # Build fresh model each fold
@@ -457,6 +512,7 @@ def loso_train(
                         arch=arch,
                         fold=fold_idx,
                         test_subj=int(test_subj),
+                        base_filters=base_filters,
                     )
                 else:
                     patience_ctr += 1
@@ -519,6 +575,7 @@ def fixed_split_train(
     neighbor_weight: float = 0.3,
     class_weights_mode: str = "none",
     base_filters: int = 64,
+    augment: bool = True,
 ) -> float:
     os.makedirs(out_dir, exist_ok=True)
     results_path = os.path.join(out_dir, "fixed_split_results.txt")
@@ -530,6 +587,7 @@ def fixed_split_train(
         X_val_n,
         y_val.astype(np.int64),
         batch_size,
+        augment=augment,
     )
 
     model = build_model(
@@ -570,6 +628,7 @@ def fixed_split_train(
                 arch=arch,
                 fold=-1,
                 test_subj=-1,
+                base_filters=base_filters,
             )
         else:
             patience_ctr += 1
@@ -643,6 +702,13 @@ def parse_args():
         default="none",
         choices=["none", "inverse_freq", "sqrt_inv"],
         help="Class weighting for CE: 'inverse_freq' upweights hard/rare classes (default none)",
+    )
+    p.add_argument(
+        "--augment",
+        action=argparse.BooleanOptionalAction,
+        default=True,
+        help="Enable training-time augmentation: Gaussian noise + axis-flip + amplitude scaling. "
+             "Use --no_augment to disable (default: enabled)",
     )
     p.add_argument(
         "--base_filters", type=int, default=64,
