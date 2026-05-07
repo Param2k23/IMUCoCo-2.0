@@ -252,6 +252,53 @@ def symmetry_analysis(cm: np.ndarray) -> list[dict]:
 
 
 # ---------------------------------------------------------------------------
+# Top confused pairs (non-L/R)
+# ---------------------------------------------------------------------------
+
+
+def _top_confused_pairs(
+    cm: np.ndarray,
+    top_n: int = 10,
+) -> list[dict]:
+    """
+    Return the top-N (true, predicted) pairs by raw error count,
+    *excluding* correct predictions (diagonal) and the L/R symmetric pairs
+    already tracked by left_right_confusion_analysis.
+
+    Each entry: {true, predicted, count, pct_of_true}
+    sorted descending by count.
+    """
+    # Build set of L/R mirror index-pairs to exclude
+    lr_index_pairs: set[tuple[int, int]] = set()
+    for l_id, r_id in SYMMETRY_PAIRS:
+        lr_index_pairs.add((l_id, r_id))
+        lr_index_pairs.add((r_id, l_id))
+
+    pairs = []
+    n_classes = cm.shape[0]
+    for true_idx in range(n_classes):
+        row_total = cm[true_idx].sum()
+        for pred_idx in range(n_classes):
+            if true_idx == pred_idx:
+                continue                        # skip correct predictions
+            if (true_idx, pred_idx) in lr_index_pairs:
+                continue                        # skip L/R pairs (tracked separately)
+            count = int(cm[true_idx, pred_idx])
+            if count == 0:
+                continue
+            pct_of_true = round(100.0 * count / max(1, row_total), 2)
+            pairs.append({
+                "true": REGION_NAMES[true_idx],
+                "predicted": REGION_NAMES[pred_idx],
+                "count": count,
+                "pct_of_true_class": pct_of_true,
+            })
+
+    pairs.sort(key=lambda d: -d["count"])
+    return pairs[:top_n]
+
+
+# ---------------------------------------------------------------------------
 # Left-Right confusion breakdown
 # ---------------------------------------------------------------------------
 
@@ -440,6 +487,15 @@ def run_evaluation(args) -> None:
         "\n── Classification Report ───────────────────────────────────\n%s", report
     )
 
+    # ── Top confused non-L/R pairs ───────────────────────────────────────
+    top_pairs = _top_confused_pairs(cm, top_n=10)
+    log.info("\n── Top-10 non-L/R confused pairs ──────────────────────────")
+    for i, p in enumerate(top_pairs, 1):
+        log.info(
+            "  %2d. %-16s → %-16s  count=%d  (%.1f%% of true class)",
+            i, p["true"], p["predicted"], p["count"], p["pct_of_true_class"],
+        )
+
     # ── Save summary JSON ────────────────────────────────────────────────
     summary = {
         "per_window_accuracy": per_window_acc,
@@ -459,6 +515,10 @@ def run_evaluation(args) -> None:
             "lr_error_pct_of_all_errors": lr_analysis["lr_error_pct"],
             "per_pair": lr_analysis["per_pair"],
         },
+        # Raw 24x24 confusion matrix (row=true, col=predicted) for offline analysis
+        "confusion_matrix": cm.tolist(),
+        # Top-10 most-confused non-symmetric pairs (the 93% non-L/R errors)
+        "top_confused_pairs": top_pairs,
     }
     summ_path = os.path.join(args.out_dir, "eval_summary.json")
     with open(summ_path, "w") as f:
