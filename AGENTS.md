@@ -10,12 +10,13 @@
 ## Environment and dependencies
 - `requirements.txt` intentionally excludes PyTorch; install `torch` separately for your CUDA/CPU target.
 - README paths are Windows-specific defaults, but scripts run on Linux if you pass explicit CLI paths.
-- Generated artifacts are ignored by git: `data/`, `checkpoints/`, `results/`.
+- Generated artifacts are ignored by git: `data/`, `data_gen/`, `checkpoints/`, `results/`.
 
 ## High-value command patterns (Linux/CUDA)
 - Full sequential commands for both current pipelines are in `commmands`.
 - For a new environment/machine setup, run `./smoke_commands` first; a successful smoke run is the fastest verification that preprocessing, training, checkpointing, normalization-stat loading, and evaluation are all working end-to-end.
 - `./smoke_commands` does not require GPU access; smoke training is compatible with CPU fallback.
+- Accepts `SMOKE_MODE` env var: `pt` (legacy .pt only), `hf` (HF Parquet only, requires shards), `both` (default, runs both if Parquet exists).
 - Single-subject conversion (ignore source split):
   - `python preprocess_vimu.py --mode single_subject ... --out_train data/processed/single_subject_train.npz --out_test data/processed/single_subject_test.npz`
 - Predefined train/test conversion:

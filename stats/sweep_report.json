@@ -1,0 +1,295 @@
+{
+  "data_path": "data/single_subject_train.npz",
+  "timestamp": 1778102696.2925673,
+  "rotation_utils": {
+    "non_orthogonal_input_R^TR_minus_I_frob": 2.9307850650390917e-07,
+    "non_orthogonal_input_det_minus_1_abs": 2.384185791015625e-07,
+    "valid_input_roundtrip_mean_err": 1.416681243426865e-07,
+    "verdict_robust_to_non_orthogonal": true
+  },
+  "acceleration": {
+    "global_mean_per_axis": [
+      0.0021251938305795193,
+      -0.001950394711457193,
+      -0.002268973970785737
+    ],
+    "global_mean_magnitude": 3.164090394973755,
+    "pelvis_mean_magnitude": 0.0,
+    "per_region_mean_magnitude": {
+      "pelvis": 0.0,
+      "l_hip": 4.331314563751221,
+      "r_hip": 4.086644649505615,
+      "spine_lower": 1.5335896015167236,
+      "l_thigh": 4.55879545211792,
+      "r_thigh": 4.571835994720459,
+      "spine_mid": 1.2975730895996094,
+      "l_shin": 6.071927070617676,
+      "r_shin": 6.159054279327393,
+      "spine_upper": 1.4348479509353638,
+      "l_foot": 6.816869258880615,
+      "r_foot": 6.54993200302124,
+      "neck": 1.5219446420669556,
+      "l_collar": 1.6393195390701294,
+      "r_collar": 1.6738256216049194,
+      "head": 1.5856133699417114,
+      "l_shoulder": 1.9169964790344238,
+      "r_shoulder": 1.8844596147537231,
+      "l_upper_arm": 2.7059895992279053,
+      "r_upper_arm": 2.2084298133850098,
+      "l_forearm": 3.289372444152832,
+      "r_forearm": 2.5540225505828857,
+      "l_hand": 4.207873344421387,
+      "r_hand": 3.0390636920928955
+    },
+    "verdict_acc_contains_gravity": false,
+    "implication": "Linear acceleration (no gravity) \u2014 gravity scorer cannot recover gravity direction. Treat gravity scorer as inert on this dataset."
+  },
+  "kinematic_uses_limits": {
+    "joint_angle_limits_consulted_in_scorer": true,
+    "joint_angle_limits_loaded_n_pairs": 46,
+    "verdict": "OK: scorer consults joint angle limits."
+  },
+  "combo_ranking": {
+    "5": {
+      "n_sensors": 5,
+      "n_segments_eval": 21,
+      "segment_total": 21,
+      "kinematic": {
+        "true_mean": 0.7330788998376756,
+        "true_std": 0.1845267225342792,
+        "vs_random": {
+          "neg_mean": 0.258281365118205,
+          "auc": 0.8956916099773242,
+          "gap": 0.4747975347194706
+        },
+        "vs_offchain_swap": {
+          "neg_mean": 0.5291390591639134,
+          "auc": 0.6761904761904762,
+          "gap": 0.20393984067376225
+        },
+        "vs_lr_swap": {
+          "neg_mean": 0.5809368079571868,
+          "auc": 0.6666666666666666,
+          "gap": 0.15214209188048877
+        }
+      },
+      "gravity": {
+        "true_mean": 0.49756626834525375,
+        "true_std": 0.09806989239092048,
+        "vs_random": {
+          "neg_mean": 0.3923369029559454,
+          "auc": 0.7324263038548753,
+          "gap": 0.10522936538930833
+        },
+        "vs_offchain_swap": {
+          "neg_mean": 0.4608623927036269,
+          "auc": 0.5904761904761905,
+          "gap": 0.03670387564162686
+        },
+        "vs_lr_swap": {
+          "neg_mean": 0.474488277143574,
+          "auc": 0.5691609977324263,
+          "gap": 0.02307799120167975
+        }
+      },
+      "accel": {
+        "true_mean": 0.21093966176135676,
+        "true_std": 0.08285807310467694,
+        "vs_random": {
+          "neg_mean": 0.09601217881944929,
+          "auc": 0.873015873015873,
+          "gap": 0.11492748294190747
+        },
+        "vs_offchain_swap": {
+          "neg_mean": 0.17359807702799443,
+          "auc": 0.6285714285714286,
+          "gap": 0.037341584733362326
+        },
+        "vs_lr_swap": {
+          "neg_mean": 0.20099753902126538,
+          "auc": 0.5419501133786848,
+          "gap": 0.009942122740091375
+        }
+      }
+    }
+  },
+  "per_region": {
+    "per_region": {
+      "pelvis": {
+        "n_samples": 22,
+        "true_mean": 1.0,
+        "wrong_mean": 0.032993076142855196,
+        "gap": 0.9670069238571448,
+        "auc": 1.0
+      },
+      "l_hip": {
+        "n_samples": 22,
+        "true_mean": 0.16652440095127477,
+        "wrong_mean": 0.03727781405458029,
+        "gap": 0.1292465868966945,
+        "auc": 0.9350521020481495
+      },
+      "r_hip": {
+        "n_samples": 22,
+        "true_mean": 0.18318185291049008,
+        "wrong_mean": 0.03509113701399234,
+        "gap": 0.14809071589649775,
+        "auc": 0.9422385914480776
+      },
+      "spine_lower": {
+        "n_samples": 22,
+        "true_mean": 0.15045168142125556,
+        "wrong_mean": 0.09827678543401704,
+        "gap": 0.052174895987238526,
+        "auc": 0.7603305785123967
+      },
+      "l_thigh": {
+        "n_samples": 22,
+        "true_mean": 0.1568654289715325,
+        "wrong_mean": 0.03146466017508819,
+        "gap": 0.1254007687964443,
+        "auc": 0.9517606899029823
+      },
+      "r_thigh": {
+        "n_samples": 22,
+        "true_mean": 0.17764916270727052,
+        "wrong_mean": 0.028879134109729754,
+        "gap": 0.14877002859754077,
+        "auc": 0.9597556593604024
+      },
+      "spine_mid": {
+        "n_samples": 22,
+        "true_mean": 0.16050388116181158,
+        "wrong_mean": 0.087813166819144,
+        "gap": 0.07269071434266758,
+        "auc": 0.7908731584620913
+      },
+      "l_shin": {
+        "n_samples": 22,
+        "true_mean": 0.1522173439329591,
+        "wrong_mean": 0.019900213440793117,
+        "gap": 0.13231713049216598,
+        "auc": 0.9624505928853755
+      },
+      "r_shin": {
+        "n_samples": 22,
+        "true_mean": 0.14754240853149747,
+        "wrong_mean": 0.024875611319191276,
+        "gap": 0.1226667972123062,
+        "auc": 0.9433165648580668
+      },
+      "spine_upper": {
+        "n_samples": 22,
+        "true_mean": 0.16622264827788388,
+        "wrong_mean": 0.08875917227419357,
+        "gap": 0.07746347600369032,
+        "auc": 0.782698526769673
+      },
+      "l_foot": {
+        "n_samples": 22,
+        "true_mean": 0.15064924730141183,
+        "wrong_mean": 0.014563301716935545,
+        "gap": 0.1360859455844763,
+        "auc": 0.9749371182177506
+      },
+      "r_foot": {
+        "n_samples": 22,
+        "true_mean": 0.14484194246262053,
+        "wrong_mean": 0.02175560787934647,
+        "gap": 0.12308633458327406,
+        "auc": 0.9507725476104922
+      },
+      "neck": {
+        "n_samples": 22,
+        "true_mean": 0.17930795476309014,
+        "wrong_mean": 0.07502865083832787,
+        "gap": 0.10427930392476227,
+        "auc": 0.8365971972691341
+      },
+      "l_collar": {
+        "n_samples": 22,
+        "true_mean": 0.17207251174803856,
+        "wrong_mean": 0.06433023122888105,
+        "gap": 0.1077422805191575,
+        "auc": 0.8620194035213798
+      },
+      "r_collar": {
+        "n_samples": 21,
+        "true_mean": 0.15896399929439098,
+        "wrong_mean": 0.07964813932197154,
+        "gap": 0.07931585997241944,
+        "auc": 0.8118899733806566
+      },
+      "head": {
+        "n_samples": 21,
+        "true_mean": 0.148607566403745,
+        "wrong_mean": 0.06725813431918937,
+        "gap": 0.08134943208455564,
+        "auc": 0.8695652173913043
+      },
+      "l_shoulder": {
+        "n_samples": 21,
+        "true_mean": 0.16034265612645274,
+        "wrong_mean": 0.07687271711090782,
+        "gap": 0.08346993901554492,
+        "auc": 0.8199743665582175
+      },
+      "r_shoulder": {
+        "n_samples": 21,
+        "true_mean": 0.17081986172232236,
+        "wrong_mean": 0.08168502147784956,
+        "gap": 0.0891348402444728,
+        "auc": 0.8054816129350291
+      },
+      "l_upper_arm": {
+        "n_samples": 21,
+        "true_mean": 0.19005761890080303,
+        "wrong_mean": 0.07780933160848426,
+        "gap": 0.11224828729231877,
+        "auc": 0.8281573498964804
+      },
+      "r_upper_arm": {
+        "n_samples": 21,
+        "true_mean": 0.17248852875173568,
+        "wrong_mean": 0.0635273445477268,
+        "gap": 0.10896118420400888,
+        "auc": 0.8609878734102336
+      },
+      "l_forearm": {
+        "n_samples": 21,
+        "true_mean": 0.19441869032689252,
+        "wrong_mean": 0.06564637604604963,
+        "gap": 0.1287723142808429,
+        "auc": 0.8655230208025239
+      },
+      "r_forearm": {
+        "n_samples": 21,
+        "true_mean": 0.17282548822705765,
+        "wrong_mean": 0.058624116253309336,
+        "gap": 0.11420137197374831,
+        "auc": 0.8790298728186927
+      },
+      "l_hand": {
+        "n_samples": 21,
+        "true_mean": 0.19856532915910105,
+        "wrong_mean": 0.0472909159932701,
+        "gap": 0.15127441316583096,
+        "auc": 0.9075224292615597
+      },
+      "r_hand": {
+        "n_samples": 21,
+        "true_mean": 0.16821255452845205,
+        "wrong_mean": 0.051003026560839534,
+        "gap": 0.11720952796761251,
+        "auc": 0.9044661342797988
+      }
+    },
+    "summary": {
+      "median_auc": 0.8742975451049986,
+      "mean_auc": 0.8835583575666862,
+      "n_regions_auc_above_0p7": 24,
+      "n_regions_auc_above_0p9": 11,
+      "median_gap": 0.11570544997068041
+    }
+  }
+}

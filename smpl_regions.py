@@ -51,6 +51,47 @@ REGION_NAMES = [
 NUM_REGIONS = len(REGION_NAMES)   # 24
 
 # ---------------------------------------------------------------------------
+# SMPL kinematic tree parent mapping (region_id -> parent_region_id, -1 for root)
+# Matches standard SMPL 24-joint skeleton (see Appendix A)
+# ---------------------------------------------------------------------------
+REGION_PARENTS = {
+    0: -1,  # pelvis (root)
+    1: 0,   # l_hip → pelvis
+    2: 0,   # r_hip → pelvis
+    3: 0,   # spine_lower → pelvis
+    4: 1,   # l_thigh → l_hip
+    5: 2,   # r_thigh → r_hip
+    6: 3,   # spine_mid → spine_lower
+    7: 4,   # l_shin → l_thigh
+    8: 5,   # r_shin → r_thigh
+    9: 6,   # spine_upper → spine_mid
+    10: 7,   # l_foot → l_shin
+    11: 8,   # r_foot → r_shin
+    12: 9,   # neck → spine_upper
+    13: 9,   # l_collar → spine_upper
+    14: 9,   # r_collar → spine_upper
+    15: 12,  # head → neck
+    16: 13,  # l_shoulder → l_collar
+    17: 14,  # r_shoulder → r_collar
+    18: 16,  # l_upper_arm → l_shoulder
+    19: 17,  # r_upper_arm → r_shoulder
+    20: 18,  # l_forearm → l_upper_arm
+    21: 19,  # r_forearm → r_upper_arm
+    22: 20,  # l_hand → l_forearm
+    23: 21,  # r_hand → r_forearm
+}
+
+
+def get_kinematic_chain(region_id: int) -> list[int]:
+    """Return full parent chain from root to region_id."""
+    chain = []
+    current = region_id
+    while current != -1:
+        chain.append(current)
+        current = REGION_PARENTS[current]
+    return list(reversed(chain))
+
+# ---------------------------------------------------------------------------
 # Symmetry pairs: (left_label, right_label)
 # Used by evaluate.py to flag confused symmetric regions.
 # ---------------------------------------------------------------------------
