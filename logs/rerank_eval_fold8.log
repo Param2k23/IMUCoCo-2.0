@@ -1,0 +1,139 @@
+2026-05-12 21:15:33,948  INFO      Device: cuda
+2026-05-12 21:15:34,104  INFO      base_filters=128 (from --base_filters override)
+2026-05-12 21:15:34,124  INFO      Loaded checkpoint  arch=resnet  in_channels=9  base_filters=128  fold=8
+2026-05-12 21:15:34,124  INFO      No --test_subject provided; using checkpoint test_subj=9
+2026-05-12 21:15:34,983  INFO      Filtered to subject 9  →  216 windows
+2026-05-12 21:15:34,985  INFO      Running inference on 216 windows …
+2026-05-12 21:15:35,110  INFO      
+── Top-k Accuracy ─────────────────────────────────────────
+2026-05-12 21:15:35,111  INFO        Top-1  accuracy : 0.8935  (193 / 216)
+2026-05-12 21:15:35,111  INFO        Top-2  accuracy : 0.9722  (210 / 216)
+2026-05-12 21:15:35,111  INFO        Top-3  accuracy : 0.9815  (212 / 216)
+2026-05-12 21:15:35,111  INFO        Top-5  accuracy : 0.9954  (215 / 216)
+2026-05-12 21:15:35,111  INFO        Top-10 accuracy : 1.0000  (216 / 216)
+2026-05-12 21:15:35,111  INFO      Per-window (top-1) accuracy: 0.8935
+2026-05-12 21:15:35,111  INFO      
+── Temporal Re-Ranking ──────────────────────────────────────
+2026-05-12 21:15:35,111  INFO        strategies : ['prob_sum', 'topk_vote', 'majority']
+2026-05-12 21:15:35,111  INFO        windows    : [1, 3, 5, 7, 10]
+2026-05-12 21:15:35,111  INFO        causal     : False
+2026-05-12 21:15:35,111  INFO        top-1 baseline : 0.8935
+2026-05-12 21:15:35,111  INFO      
+2026-05-12 21:15:35,115  INFO        Strategy         Win       Acc  vs top-1
+2026-05-12 21:15:35,115  INFO        ------------------------------------------
+2026-05-12 21:15:35,115  INFO        prob_sum           1    0.8935   +0.0000
+2026-05-12 21:15:35,115  INFO        topk_vote          1    0.8935   +0.0000
+2026-05-12 21:15:35,115  INFO        majority           1    0.8935   +0.0000
+2026-05-12 21:15:35,115  INFO        prob_sum           3    0.2963   -0.5972
+2026-05-12 21:15:35,115  INFO        topk_vote          3    0.2824   -0.6111
+2026-05-12 21:15:35,115  INFO        topk_vote          5    0.2222   -0.6713
+2026-05-12 21:15:35,115  INFO        prob_sum           5    0.2083   -0.6852
+2026-05-12 21:15:35,115  INFO        topk_vote          7    0.1528   -0.7407
+2026-05-12 21:15:35,115  INFO        prob_sum           7    0.1435   -0.7500
+2026-05-12 21:15:35,115  INFO        prob_sum          10    0.1019   -0.7917
+2026-05-12 21:15:35,115  INFO        topk_vote         10    0.1019   -0.7917
+2026-05-12 21:15:35,115  INFO        majority           7    0.0880   -0.8056
+2026-05-12 21:15:35,115  INFO        majority           5    0.0833   -0.8102
+2026-05-12 21:15:35,115  INFO        majority          10    0.0833   -0.8102
+2026-05-12 21:15:35,115  INFO        majority           3    0.0648   -0.8287
+2026-05-12 21:15:35,115  INFO        No re-ranking config improved over top-1 baseline.
+2026-05-12 21:15:35,116  INFO      Majority-vote accuracy: 0.0000  (locked 0.5% of windows)
+2026-05-12 21:15:35,761  INFO      Confusion matrix saved → results/penalty_sweep/rerank_eval/fold8/confusion_matrix.png
+2026-05-12 21:15:35,761  INFO      
+── Symmetry Confusion (top 5) ─────────────────────────────
+2026-05-12 21:15:35,761  INFO        l_hip          ↔ r_hip           avg_rate=0.056
+2026-05-12 21:15:35,761  INFO        l_hand         ↔ r_hand          avg_rate=0.056
+2026-05-12 21:15:35,761  INFO        l_thigh        ↔ r_thigh         avg_rate=0.000
+2026-05-12 21:15:35,761  INFO        l_shin         ↔ r_shin          avg_rate=0.000
+2026-05-12 21:15:35,761  INFO        l_foot         ↔ r_foot          avg_rate=0.000
+2026-05-12 21:15:35,761  INFO      
+── Left-Right Confusion Breakdown ─────────────────────────
+2026-05-12 21:15:35,761  INFO        Total errors      : 23 / 216  (10.6%)
+2026-05-12 21:15:35,761  INFO        L↔R mirror errors : 2 / 23 errors  (8.7% of all errors)
+2026-05-12 21:15:35,761  INFO        Per symmetric pair (sorted by error count):
+2026-05-12 21:15:35,761  INFO          l_hip ↔ r_hip                         total=1
+2026-05-12 21:15:35,761  INFO            l_hip→r_hip                              0
+2026-05-12 21:15:35,761  INFO            r_hip→l_hip                              1
+2026-05-12 21:15:35,761  INFO          l_hand ↔ r_hand                       total=1
+2026-05-12 21:15:35,761  INFO            l_hand→r_hand                            0
+2026-05-12 21:15:35,761  INFO            r_hand→l_hand                            1
+2026-05-12 21:15:35,761  INFO      
+── Spatial Error (mis-classified samples) ─────────────────
+2026-05-12 21:15:35,761  INFO        N wrong      : 23 / 216  (10.6%)
+2026-05-12 21:15:35,761  INFO        Mean error   : 0.3213 m
+2026-05-12 21:15:35,761  INFO        Std error    : 0.2134 m
+2026-05-12 21:15:35,764  INFO      
+── Classification Report ───────────────────────────────────
+              precision    recall  f1-score   support
+
+      pelvis       1.00      1.00      1.00         9
+       l_hip       0.90      1.00      0.95         9
+       r_hip       1.00      0.89      0.94         9
+ spine_lower       1.00      1.00      1.00         9
+     l_thigh       1.00      1.00      1.00         9
+     r_thigh       1.00      0.89      0.94         9
+   spine_mid       1.00      1.00      1.00         9
+      l_shin       1.00      1.00      1.00         9
+      r_shin       1.00      0.89      0.94         9
+ spine_upper       0.90      1.00      0.95         9
+      l_foot       0.90      1.00      0.95         9
+      r_foot       1.00      1.00      1.00         9
+        neck       0.89      0.89      0.89         9
+    l_collar       1.00      1.00      1.00         9
+    r_collar       0.82      1.00      0.90         9
+        head       1.00      0.89      0.94         9
+  l_shoulder       0.82      1.00      0.90         9
+  r_shoulder       1.00      0.89      0.94         9
+ l_upper_arm       0.67      0.67      0.67         9
+ r_upper_arm       0.67      0.89      0.76         9
+   l_forearm       0.62      0.56      0.59         9
+   r_forearm       0.86      0.67      0.75         9
+      l_hand       0.67      0.67      0.67         9
+      r_hand       0.86      0.67      0.75         9
+
+    accuracy                           0.89       216
+   macro avg       0.90      0.89      0.89       216
+weighted avg       0.90      0.89      0.89       216
+
+2026-05-12 21:15:35,764  INFO      
+── Top-10 non-L/R confused pairs ──────────────────────────
+2026-05-12 21:15:35,764  INFO         1. l_forearm        → l_upper_arm       count=3  (33.3% of true class)
+2026-05-12 21:15:35,764  INFO         2. r_forearm        → r_upper_arm       count=3  (33.3% of true class)
+2026-05-12 21:15:35,764  INFO         3. l_upper_arm      → l_hand            count=2  (22.2% of true class)
+2026-05-12 21:15:35,764  INFO         4. l_hand           → l_forearm         count=2  (22.2% of true class)
+2026-05-12 21:15:35,764  INFO         5. r_thigh          → spine_upper       count=1  (11.1% of true class)
+2026-05-12 21:15:35,764  INFO         6. r_shin           → l_foot            count=1  (11.1% of true class)
+2026-05-12 21:15:35,764  INFO         7. neck             → r_collar          count=1  (11.1% of true class)
+2026-05-12 21:15:35,764  INFO         8. head             → neck              count=1  (11.1% of true class)
+2026-05-12 21:15:35,764  INFO         9. r_shoulder       → r_collar          count=1  (11.1% of true class)
+2026-05-12 21:15:35,764  INFO        10. l_upper_arm      → l_forearm         count=1  (11.1% of true class)
+2026-05-12 21:15:35,765  INFO      
+── Per-class top-k accuracy ────────────────────────────────
+2026-05-12 21:15:35,765  INFO        Class              top 1 top 2 top 3 top 5 top10
+2026-05-12 21:15:35,765  INFO        ------------------------------------------------
+2026-05-12 21:15:35,765  INFO        pelvis             1.000 1.000 1.000 1.000 1.000  (n=9)
+2026-05-12 21:15:35,765  INFO        l_hip              1.000 1.000 1.000 1.000 1.000  (n=9)
+2026-05-12 21:15:35,765  INFO        r_hip              0.889 1.000 1.000 1.000 1.000  (n=9)
+2026-05-12 21:15:35,765  INFO        spine_lower        1.000 1.000 1.000 1.000 1.000  (n=9)
+2026-05-12 21:15:35,765  INFO        l_thigh            1.000 1.000 1.000 1.000 1.000  (n=9)
+2026-05-12 21:15:35,765  INFO        r_thigh            0.889 1.000 1.000 1.000 1.000  (n=9)
+2026-05-12 21:15:35,765  INFO        spine_mid          1.000 1.000 1.000 1.000 1.000  (n=9)
+2026-05-12 21:15:35,765  INFO        l_shin             1.000 1.000 1.000 1.000 1.000  (n=9)
+2026-05-12 21:15:35,765  INFO        r_shin             0.889 1.000 1.000 1.000 1.000  (n=9)
+2026-05-12 21:15:35,765  INFO        spine_upper        1.000 1.000 1.000 1.000 1.000  (n=9)
+2026-05-12 21:15:35,765  INFO        l_foot             1.000 1.000 1.000 1.000 1.000  (n=9)
+2026-05-12 21:15:35,765  INFO        r_foot             1.000 1.000 1.000 1.000 1.000  (n=9)
+2026-05-12 21:15:35,765  INFO        neck               0.889 0.889 1.000 1.000 1.000  (n=9)
+2026-05-12 21:15:35,765  INFO        l_collar           1.000 1.000 1.000 1.000 1.000  (n=9)
+2026-05-12 21:15:35,765  INFO        r_collar           1.000 1.000 1.000 1.000 1.000  (n=9)
+2026-05-12 21:15:35,765  INFO        head               0.889 1.000 1.000 1.000 1.000  (n=9)
+2026-05-12 21:15:35,765  INFO        l_shoulder         1.000 1.000 1.000 1.000 1.000  (n=9)
+2026-05-12 21:15:35,765  INFO        r_shoulder         0.889 1.000 1.000 1.000 1.000  (n=9)
+2026-05-12 21:15:35,765  INFO        l_upper_arm        0.667 1.000 1.000 1.000 1.000  (n=9)
+2026-05-12 21:15:35,765  INFO        r_upper_arm        0.889 1.000 1.000 1.000 1.000  (n=9)
+2026-05-12 21:15:35,765  INFO        l_forearm          0.556 0.889 1.000 1.000 1.000  (n=9)
+2026-05-12 21:15:35,765  INFO        r_forearm          0.667 0.778 0.778 0.889 1.000  (n=9)
+2026-05-12 21:15:35,765  INFO        l_hand             0.667 0.889 0.889 1.000 1.000  (n=9)
+2026-05-12 21:15:35,765  INFO        r_hand             0.667 0.889 0.889 1.000 1.000  (n=9)
+2026-05-12 21:15:35,767  INFO      
+✓ Evaluation complete.  Summary saved → results/penalty_sweep/rerank_eval/fold8/eval_summary.json

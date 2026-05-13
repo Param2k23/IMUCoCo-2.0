@@ -1,0 +1,105 @@
+{
+  "mean_top1_acc": 0.8684,
+  "best_config": "prob_sum_w1",
+  "best_config_acc": 0.8684,
+  "best_gain_vs_top1": 0.0,
+  "per_config_mean": {
+    "prob_sum_w1": 0.8684,
+    "topk_vote_w1": 0.8684,
+    "majority_w1": 0.8684,
+    "prob_sum_w3": 0.2808,
+    "topk_vote_w3": 0.2808,
+    "topk_vote_w5": 0.2266,
+    "prob_sum_w5": 0.2261,
+    "topk_vote_w7": 0.162,
+    "prob_sum_w7": 0.1592,
+    "prob_sum_w10": 0.1032,
+    "topk_vote_w10": 0.1027,
+    "majority_w5": 0.094,
+    "majority_w7": 0.0822,
+    "majority_w3": 0.0673,
+    "majority_w10": 0.0664
+  },
+  "per_fold": [
+    {
+      "fold": "fold0",
+      "n_windows": 2784,
+      "top1_acc": 0.8283,
+      "best_rr_acc": 0.8283,
+      "best_config": null,
+      "gain": 0.0
+    },
+    {
+      "fold": "fold1",
+      "n_windows": 2664,
+      "top1_acc": 0.8397,
+      "best_rr_acc": 0.8397,
+      "best_config": null,
+      "gain": 0.0
+    },
+    {
+      "fold": "fold2",
+      "n_windows": 2736,
+      "top1_acc": 0.8958,
+      "best_rr_acc": 0.8958,
+      "best_config": null,
+      "gain": 0.0
+    },
+    {
+      "fold": "fold3",
+      "n_windows": 2520,
+      "top1_acc": 0.8587,
+      "best_rr_acc": 0.8587,
+      "best_config": null,
+      "gain": 0.0
+    },
+    {
+      "fold": "fold4",
+      "n_windows": 2760,
+      "top1_acc": 0.892,
+      "best_rr_acc": 0.892,
+      "best_config": null,
+      "gain": 0.0
+    },
+    {
+      "fold": "fold5",
+      "n_windows": 2736,
+      "top1_acc": 0.8238,
+      "best_rr_acc": 0.8238,
+      "best_config": null,
+      "gain": 0.0
+    },
+    {
+      "fold": "fold6",
+      "n_windows": 2496,
+      "top1_acc": 0.9083,
+      "best_rr_acc": 0.9083,
+      "best_config": null,
+      "gain": 0.0
+    },
+    {
+      "fold": "fold7",
+      "n_windows": 2544,
+      "top1_acc": 0.8734,
+      "best_rr_acc": 0.8734,
+      "best_config": null,
+      "gain": 0.0
+    },
+    {
+      "fold": "fold8",
+      "n_windows": 216,
+      "top1_acc": 0.8935,
+      "best_rr_acc": 0.8935,
+      "best_config": null,
+      "gain": 0.0
+    },
+    {
+      "fold": "fold9",
+      "n_windows": 240,
+      "top1_acc": 0.8708,
+      "best_rr_acc": 0.8708,
+      "best_config": null,
+      "gain": 0.0
+    }
+  ]
+}
