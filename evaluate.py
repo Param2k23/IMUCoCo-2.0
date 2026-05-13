@@ -147,16 +147,106 @@ def load_test_data(
 
 
 @torch.no_grad()
-def predict_all(
-    model: torch.nn.Module, X: np.ndarray, batch_size: int, device: torch.device
-) -> np.ndarray:
-    """Return per-window predicted class labels."""
-    preds = []
+def predict_all_topk(
+    model: torch.nn.Module,
+    X: np.ndarray,
+    batch_size: int,
+    device: torch.device,
+    k_max: int = 10,
+) -> tuple[np.ndarray, np.ndarray]:
+    """
+    Run inference and return BOTH top-k indices and softmax probabilities.
+
+    Returns
+    -------
+    topk_indices : (N, k_max)  int64  — class indices ranked by confidence
+    topk_probs   : (N, k_max)  float32 — corresponding softmax probabilities
+    """
+    all_indices, all_probs = [], []
     n = len(X)
     for start in range(0, n, batch_size):
         xb = torch.from_numpy(X[start : start + batch_size]).to(device)
-        preds.append(model(xb).argmax(dim=1).cpu().numpy())
-    return np.concatenate(preds)
+        logits = model(xb)                                    # (B, C)
+        probs  = torch.softmax(logits, dim=1)                # (B, C)
+        k      = min(k_max, logits.shape[1])
+        topk   = probs.topk(k, dim=1)                        # values, indices
+        all_indices.append(topk.indices.cpu().numpy())
+        all_probs.append(topk.values.cpu().numpy())
+    return (
+        np.concatenate(all_indices, axis=0).astype(np.int64),   # (N, k_max)
+        np.concatenate(all_probs,   axis=0).astype(np.float32), # (N, k_max)
+    )
+
+
+# Keep the original for backward compat (used by majority_vote_stream)
+def predict_all(
+    model: torch.nn.Module, X: np.ndarray, batch_size: int, device: torch.device
+) -> np.ndarray:
+    """Return per-window top-1 predicted class labels."""
+    indices, _ = predict_all_topk(model, X, batch_size, device, k_max=1)
+    return indices[:, 0]
+
+
+# ---------------------------------------------------------------------------
+# Top-k accuracy
+# ---------------------------------------------------------------------------
+
+
+def topk_accuracy(
+    y_true: np.ndarray,
+    topk_indices: np.ndarray,
+    k_values: list[int],
+) -> dict[int, float]:
+    """
+    For each k in k_values, compute the fraction of windows where the
+    true label appears in the top-k predictions.
+
+    Parameters
+    ----------
+    y_true       : (N,)      ground-truth class indices
+    topk_indices : (N, k_max) predicted class indices sorted by confidence
+    k_values     : list of k values to evaluate (e.g. [1,2,3,5,10])
+
+    Returns
+    -------
+    dict  k -> accuracy (float 0..1)
+    """
+    results = {}
+    k_max = topk_indices.shape[1]
+    for k in k_values:
+        k_eff = min(k, k_max)
+        # true label in the first k columns?
+        in_topk = (topk_indices[:, :k_eff] == y_true[:, np.newaxis]).any(axis=1)
+        results[k] = float(in_topk.mean())
+    return results
+
+
+def topk_accuracy_per_class(
+    y_true: np.ndarray,
+    topk_indices: np.ndarray,
+    k_values: list[int],
+    class_names: list[str],
+) -> list[dict]:
+    """
+    Per-class top-k accuracy for each k in k_values.
+
+    Returns list of dicts:
+      {class_name, n_windows, top1, top2, top3, top5, top10, ...}
+    """
+    k_max = topk_indices.shape[1]
+    rows = []
+    for cls_idx, name in enumerate(class_names):
+        mask = y_true == cls_idx
+        n = int(mask.sum())
+        if n == 0:
+            continue
+        row = {"class": name, "n_windows": n}
+        for k in k_values:
+            k_eff = min(k, k_max)
+            in_topk = (topk_indices[mask][:, :k_eff] == cls_idx).any(axis=1)
+            row[f"top{k}"] = round(float(in_topk.mean()), 4)
+        rows.append(row)
+    return rows
 
 
 # ---------------------------------------------------------------------------
@@ -414,10 +504,23 @@ def run_evaluation(args) -> None:
 
     # ── Per-window inference ────────────────────────────────────────────
     log.info("Running inference on %d windows …", len(X))
-    y_pred = predict_all(model, X, batch_size=args.batch_size, device=device)
+    k_values = sorted(set(args.topk))                        # e.g. [1,2,3,5,10]
+    k_max    = max(k_values)
 
-    per_window_acc = float(accuracy_score(y_true, y_pred))
-    log.info("Per-window accuracy: %.4f", per_window_acc)
+    topk_indices, topk_probs = predict_all_topk(
+        model, X, batch_size=args.batch_size, device=device, k_max=k_max
+    )
+    y_pred = topk_indices[:, 0]  # top-1 for backward compat
+
+    # ── Top-k accuracy ──────────────────────────────────────────────────
+    topk_acc = topk_accuracy(y_true, topk_indices, k_values)
+    log.info("\n── Top-k Accuracy ─────────────────────────────────────────")
+    for k, acc in sorted(topk_acc.items()):
+        log.info("  Top-%-2d accuracy : %.4f  (%d / %d)",
+                 k, acc, int(acc * len(y_true)), len(y_true))
+
+    per_window_acc = topk_acc[1]  # top-1 == per-window accuracy
+    log.info("Per-window (top-1) accuracy: %.4f", per_window_acc)
 
     # ── Majority-vote filter ────────────────────────────────────────────
     y_voted = majority_vote_stream(y_pred, k=args.vote_k)
@@ -510,9 +613,23 @@ def run_evaluation(args) -> None:
             i, p["true"], p["predicted"], p["count"], p["pct_of_true_class"],
         )
 
+    # ── Per-class top-k breakdown ─────────────────────────────────────────
+    per_class_topk = topk_accuracy_per_class(
+        y_true, topk_indices, k_values, REGION_NAMES
+    )
+    log.info("\n── Per-class top-k accuracy ────────────────────────────────")
+    header = f"  {'Class':<18}" + "".join(f" top{k:>2}" for k in k_values)
+    log.info(header)
+    log.info("  " + "-" * (18 + 6 * len(k_values)))
+    for row in per_class_topk:
+        vals = "".join(f" {row.get(f'top{k}', 0.0):>5.3f}" for k in k_values)
+        log.info("  %-18s%s  (n=%d)", row["class"], vals, row["n_windows"])
+
     # ── Save summary JSON ────────────────────────────────────────────────
     summary = {
         "per_window_accuracy": per_window_acc,
+        "topk_accuracy": {f"top{k}": v for k, v in sorted(topk_acc.items())},
+        "per_class_topk": per_class_topk,
         "majority_vote_accuracy": voted_acc,
         "vote_k": args.vote_k,
         "locked_fraction": locked_pct / 100,
@@ -583,6 +700,13 @@ def parse_args():
         default=0,
         help="Override base_filters for model architecture (0 = auto-detect from stats). "
              "Use 128 for checkpoints trained with --base_filters 128 that predate this fix.",
+    )
+    p.add_argument(
+        "--topk",
+        type=lambda s: sorted(set(int(x) for x in s.split(",") if int(x) > 0)),
+        default=[1, 2, 3, 5, 10],
+        metavar="K1,K2,...",
+        help="Comma-separated list of k values for top-k accuracy (default: 1,2,3,5,10).",
     )
     p.add_argument(
         "--smoke", action="store_true", help="Run internal self-tests and exit"

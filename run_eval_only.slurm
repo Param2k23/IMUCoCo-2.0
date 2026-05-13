@@ -63,6 +63,8 @@ BATCH_SIZE="${BATCH_SIZE:-512}"
 # base_filters of the trained model — 0 = auto-detect from normalization stats.
 # Set to 128 for checkpoints trained with --base_filters 128 that predate the fix.
 BASE_FILTERS="${BASE_FILTERS:-128}"
+# Comma-separated k values for top-k accuracy
+TOPK="${TOPK:-1,2,3,5,10}"
 
 mkdir -p logs "$OUT_DIR"
 
@@ -73,6 +75,7 @@ echo "[eval] ckpt_dir   : $CKPT_DIR"
 echo "[eval] data       : $DATA_NPZ"
 echo "[eval] out_dir    : $OUT_DIR"
 echo "[eval] vote_k     : $VOTE_K  batch_size=$BATCH_SIZE  base_filters=$BASE_FILTERS"
+echo "[eval] topk       : $TOPK"
 echo "[eval] started    : $(date)"
 echo "============================================================"
 
@@ -109,6 +112,7 @@ for CKPT in "$CKPT_DIR"/best_model_fold*.pt; do
     --vote_k      "$VOTE_K" \
     --batch_size  "$BATCH_SIZE" \
     --base_filters "$BASE_FILTERS" \
+    --topk        "$TOPK" \
     2>&1 | tee "logs/eval_only_fold${FOLD_ID}.log"
 done
 
@@ -157,22 +161,33 @@ for d in eval_dirs:
     for pp in lr.get("per_pair", []):
         lr_totals[pp["pair"]] += pp["total_lr_errors"]
 
-    fold_rows.append({
+    row = {
         "fold": d.name, "n_windows": n_w, "acc": round(acc, 4),
         "total_errors": n_e, "lr_errors": n_lr,
         "lr_pct": round(100.0 * n_lr / max(1, n_e), 1),
-    })
+    }
+    # Pull top-k accuracy values from the new topk_accuracy field
+    for k_str, v in data.get("topk_accuracy", {}).items():
+        row[k_str] = round(v, 4)   # e.g. row["top3"] = 0.9521
+    fold_rows.append(row)
 
 # ── Per-fold summary ──────────────────────────────────────────────────────────
 print()
-print(f"{'Fold':<10} {'Windows':>8} {'Acc':>7} {'Errors':>8} {'L/R Err':>8} {'L/R%':>6}")
-print("-" * 54)
+k_values = [int(k) for k in "$TOPK".split(",")]
+k_headers = "".join(f" top{k:>2}" for k in k_values)
+print(f"{'Fold':<10} {'Windows':>8} {'top1':>6}{k_headers}  {'Errors':>8} {'L/R Err':>8} {'L/R%':>6}")
+print("-" * (42 + 6 * len(k_values)))
 for f in fold_rows:
-    print(f"  {f['fold']:<8} {f['n_windows']:>8} {f['acc']:>7.4f} "
-          f"{f['total_errors']:>8} {f['lr_errors']:>8} {f['lr_pct']:>5.1f}%")
+    acc_vals = "".join(f" {f.get(f'top{k}', f['acc']):>5.3f}" for k in k_values)
+    print(f"  {f['fold']:<8} {f['n_windows']:>8}{acc_vals}  {f['total_errors']:>8} {f['lr_errors']:>8} {f['lr_pct']:>5.1f}%")
 nonlr = total_errors - total_lr_err
-print("-" * 54)
-print(f"  {'TOTAL':<8} {total_windows:>8}         {total_errors:>8} "
+print("-" * (42 + 6 * len(k_values)))
+topk_means = {}
+for k in k_values:
+    vals = [f.get(f'top{k}', f['acc']) for f in fold_rows]
+    topk_means[k] = sum(vals) / max(1, len(vals))
+mean_vals = "".join(f" {topk_means[k]:>5.3f}" for k in k_values)
+print(f"  {'MEAN':<8} {total_windows:>8}{mean_vals}  {total_errors:>8} "
       f"{total_lr_err:>8} {100*total_lr_err/max(1,total_errors):>5.1f}%")
 print(f"  Non-L/R errors: {nonlr} ({100*nonlr/max(1,total_errors):.1f}%)")
 
