@@ -5,20 +5,20 @@
   "best_gain_vs_top1": 0.0,
   "per_config_mean": {
     "prob_sum_w1": 0.8684,
+    "prob_sum_w3": 0.8684,
+    "prob_sum_w5": 0.8684,
+    "prob_sum_w7": 0.8684,
+    "prob_sum_w10": 0.8684,
     "topk_vote_w1": 0.8684,
+    "topk_vote_w3": 0.8684,
+    "topk_vote_w5": 0.8684,
+    "topk_vote_w7": 0.8684,
+    "topk_vote_w10": 0.8684,
     "majority_w1": 0.8684,
-    "prob_sum_w3": 0.2808,
-    "topk_vote_w3": 0.2808,
-    "topk_vote_w5": 0.2266,
-    "prob_sum_w5": 0.2261,
-    "topk_vote_w7": 0.162,
-    "prob_sum_w7": 0.1592,
-    "prob_sum_w10": 0.1032,
-    "topk_vote_w10": 0.1027,
-    "majority_w5": 0.094,
-    "majority_w7": 0.0822,
-    "majority_w3": 0.0673,
-    "majority_w10": 0.0664
+    "majority_w3": 0.8684,
+    "majority_w5": 0.8684,
+    "majority_w7": 0.8684,
+    "majority_w10": 0.8684
   },
   "per_fold": [
     {
