@@ -50,6 +50,7 @@ from smpl_regions import (
     SYMMETRY_PAIRS,
     spatial_error as compute_spatial_error,
 )
+from temporal_rerank import rerank_accuracy_table, rerank_per_class_accuracy
 
 logging.basicConfig(
     level=logging.INFO, format="%(asctime)s  %(levelname)-8s  %(message)s"
@@ -522,6 +523,70 @@ def run_evaluation(args) -> None:
     per_window_acc = topk_acc[1]  # top-1 == per-window accuracy
     log.info("Per-window (top-1) accuracy: %.4f", per_window_acc)
 
+    # ── Temporal re-ranking ───────────────────────────────────────────────
+    rerank_results  = {}  # (strategy, window) -> acc
+    best_rerank_acc = per_window_acc
+    best_rerank_cfg = None
+
+    if args.rerank_windows:
+        strategies = [s.strip() for s in args.rerank_strategy.split(",")]
+        w_sizes    = sorted(set(args.rerank_windows))
+
+        log.info("\n── Temporal Re-Ranking ──────────────────────────────────────")
+        log.info("  strategies : %s", strategies)
+        log.info("  windows    : %s", w_sizes)
+        log.info("  causal     : %s", args.rerank_causal)
+        log.info("  top-1 baseline : %.4f", per_window_acc)
+        log.info("")
+
+        rr_table = rerank_accuracy_table(
+            y_true, topk_indices, topk_probs,
+            window_sizes=w_sizes,
+            strategies=strategies,
+            n_classes=NUM_REGIONS,
+            k_vote=args.rerank_k_vote,
+            causal=args.rerank_causal,
+        )
+
+        # Print comparison table
+        log.info("  %-14s  %4s  %8s  %8s", "Strategy", "Win", "Acc", "vs top-1")
+        log.info("  " + "-" * 42)
+        for (strat, w), acc in sorted(rr_table.items(), key=lambda x: -x[1]):
+            delta = acc - per_window_acc
+            log.info("  %-14s  %4d  %8.4f  %+8.4f", strat, w, acc, delta)
+            rerank_results[f"{strat}_w{w}"] = round(acc, 6)
+            if acc > best_rerank_acc:
+                best_rerank_acc = acc
+                best_rerank_cfg = (strat, w)
+
+        if best_rerank_cfg:
+            s, w = best_rerank_cfg
+            log.info("\n  Best re-rank config : strategy=%s  window=%d", s, w)
+            log.info("  Best re-rank acc    : %.4f  (%+.4f vs top-1)",
+                     best_rerank_acc, best_rerank_acc - per_window_acc)
+
+            # Per-class breakdown for the best config
+            pc_rr = rerank_per_class_accuracy(
+                y_true, topk_indices, topk_probs,
+                window_size=w, strategy=s,
+                n_classes=NUM_REGIONS, class_names=REGION_NAMES,
+                k_vote=args.rerank_k_vote, causal=args.rerank_causal,
+            )
+            log.info("\n── Per-class gain from re-ranking (best config: %s w=%d) ──", s, w)
+            log.info("  %-18s %8s %8s %8s", "Class", "top-1", "reranked", "gain")
+            log.info("  " + "-" * 46)
+            for row in pc_rr:
+                log.info("  %-18s %8.4f %8.4f %+8.4f  (n=%d)",
+                         row["class"], row["top1_acc"], row["reranked_acc"],
+                         row["gain"], row["n_windows"])
+        else:
+            pc_rr = []
+            log.info("  No re-ranking config improved over top-1 baseline.")
+    else:
+        rr_table = {}
+        pc_rr = []
+        log.info("Re-ranking disabled (--rerank_windows not set).")
+
     # ── Majority-vote filter ────────────────────────────────────────────
     y_voted = majority_vote_stream(y_pred, k=args.vote_k)
     vote_mask = y_voted >= 0
@@ -630,6 +695,13 @@ def run_evaluation(args) -> None:
         "per_window_accuracy": per_window_acc,
         "topk_accuracy": {f"top{k}": v for k, v in sorted(topk_acc.items())},
         "per_class_topk": per_class_topk,
+        "temporal_reranking": {
+            "best_acc"     : round(best_rerank_acc, 6),
+            "best_config"  : f"{best_rerank_cfg[0]}_w{best_rerank_cfg[1]}" if best_rerank_cfg else None,
+            "gain_vs_top1" : round(best_rerank_acc - per_window_acc, 6),
+            "all_configs"  : rerank_results,
+            "per_class_best_config": pc_rr,
+        },
         "majority_vote_accuracy": voted_acc,
         "vote_k": args.vote_k,
         "locked_fraction": locked_pct / 100,
@@ -707,6 +779,37 @@ def parse_args():
         default=[1, 2, 3, 5, 10],
         metavar="K1,K2,...",
         help="Comma-separated list of k values for top-k accuracy (default: 1,2,3,5,10).",
+    )
+    # ── Temporal re-ranking ──────────────────────────────────────────────────
+    p.add_argument(
+        "--rerank_windows",
+        type=lambda s: sorted(set(int(x) for x in s.split(",") if int(x) > 0)),
+        default=[1, 3, 5, 7, 10],
+        metavar="W1,W2,...",
+        help="Sliding-window sizes to try for temporal re-ranking (default: 1,3,5,7,10). "
+             "Set to 0 to disable re-ranking entirely.",
+    )
+    p.add_argument(
+        "--rerank_strategy",
+        type=str,
+        default="prob_sum,topk_vote,majority",
+        metavar="S1,S2,...",
+        help="Comma-separated re-ranking strategies to compare. "
+             "Choices: prob_sum, topk_vote, majority (default: all three).",
+    )
+    p.add_argument(
+        "--rerank_k_vote",
+        type=int,
+        default=3,
+        help="k used by topk_vote strategy — how many top predictions each window votes for "
+             "(default: 3).",
+    )
+    p.add_argument(
+        "--rerank_causal",
+        action="store_true",
+        default=False,
+        help="Use causal (past-only) window instead of centred window. "
+             "Use for streaming/real-time evaluation.",
     )
     p.add_argument(
         "--smoke", action="store_true", help="Run internal self-tests and exit"
