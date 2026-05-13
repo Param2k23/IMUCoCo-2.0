@@ -80,14 +80,39 @@ def _build_prob_matrix(
     return prob_matrix
 
 
+def _get_segments(y_true: np.ndarray) -> list[tuple[int, int]]:
+    """
+    Return list of (start, end) index pairs for each contiguous run of the
+    same label in y_true.  The window is applied independently per segment.
+
+    E.g. y_true = [0,0,0,1,1,2,2,2] → [(0,3), (3,5), (5,8)]
+    """
+    if len(y_true) == 0:
+        return []
+    segments = []
+    start = 0
+    for i in range(1, len(y_true)):
+        if y_true[i] != y_true[i - 1]:
+            segments.append((start, i))
+            start = i
+    segments.append((start, len(y_true)))
+    return segments
+
+
 def _sliding_sum(
     prob_matrix: np.ndarray,
     window_size: int,
     causal: bool,
+    y_true: np.ndarray | None = None,
 ) -> np.ndarray:
     """
     For every position i, sum prob_matrix rows over a sliding window and
     return the argmax class.
+
+    If y_true is provided, the window is applied **within each contiguous
+    same-label segment** so it never crosses a class boundary.  This is the
+    correct behaviour when the dataset stores windows sorted by class rather
+    than by recording time.
 
     causal=False  → centred window [i - half_w, i + half_w]  (offline)
     causal=True   → left-only window [i - window_size + 1, i]  (streaming)
@@ -100,17 +125,28 @@ def _sliding_sum(
     if window_size == 1:
         return prob_matrix.argmax(axis=1).astype(np.int64)
 
-    half_w = window_size // 2
+    half_w     = window_size // 2
     y_reranked = np.empty(N, dtype=np.int64)
 
-    for i in range(N):
-        if causal:
-            start = max(0, i - window_size + 1)
-            end   = i + 1
-        else:
-            start = max(0, i - half_w)
-            end   = min(N, i + half_w + 1)
-        y_reranked[i] = prob_matrix[start:end].sum(axis=0).argmax()
+    # Determine segments to operate within
+    if y_true is not None:
+        segments = _get_segments(y_true)
+    else:
+        segments = [(0, N)]   # treat whole array as one segment
+
+    for seg_start, seg_end in segments:
+        seg_len = seg_end - seg_start
+        for local_i in range(seg_len):
+            global_i = seg_start + local_i
+            if causal:
+                local_start = max(0, local_i - window_size + 1)
+                local_end   = local_i + 1
+            else:
+                local_start = max(0, local_i - half_w)
+                local_end   = min(seg_len, local_i + half_w + 1)
+            g_start = seg_start + local_start
+            g_end   = seg_start + local_end
+            y_reranked[global_i] = prob_matrix[g_start:g_end].sum(axis=0).argmax()
 
     return y_reranked
 
@@ -126,14 +162,14 @@ def rerank_prob_sum(
     window_size: int,
     n_classes: int,
     causal: bool = False,
+    y_true: np.ndarray | None = None,
 ) -> np.ndarray:
     """
     Sum softmax probabilities over a sliding window and pick argmax.
-
-    Best strategy when the model's confidence is well-calibrated.
+    The window stays within each contiguous same-label segment of y_true.
     """
     prob_matrix = _build_prob_matrix(topk_indices, topk_probs, n_classes)
-    return _sliding_sum(prob_matrix, window_size, causal)
+    return _sliding_sum(prob_matrix, window_size, causal, y_true)
 
 
 def rerank_topk_vote(
@@ -143,19 +179,17 @@ def rerank_topk_vote(
     n_classes: int,
     k_vote: int = 3,
     causal: bool = False,
+    y_true: np.ndarray | None = None,
 ) -> np.ndarray:
     """
     Each window contributes a weighted vote for every class in its top-k_vote
-    predictions.  The weight is the softmax probability.
-
-    When k_vote >= k_max this is identical to prob_sum.
-    When k_vote == 1 this is a probability-weighted majority vote.
+    predictions.  The window stays within each contiguous same-label segment.
     """
     k_eff = min(k_vote, topk_indices.shape[1])
     prob_matrix = _build_prob_matrix(
         topk_indices[:, :k_eff], topk_probs[:, :k_eff], n_classes
     )
-    return _sliding_sum(prob_matrix, window_size, causal)
+    return _sliding_sum(prob_matrix, window_size, causal, y_true)
 
 
 def rerank_majority(
@@ -163,16 +197,16 @@ def rerank_majority(
     window_size: int,
     n_classes: int,
     causal: bool = False,
+    y_true: np.ndarray | None = None,
 ) -> np.ndarray:
     """
-    Classic majority vote: each window casts one hard vote for its top-1
-    prediction.  The class with the most votes in the window wins.
+    Classic majority vote on top-1 predictions.
+    The window stays within each contiguous same-label segment.
     """
     y_pred = topk_indices[:, 0].astype(np.int64)
-    # Build one-hot matrix then use sliding_sum
     one_hot = np.zeros((len(y_pred), n_classes), dtype=np.float32)
     one_hot[np.arange(len(y_pred)), y_pred] = 1.0
-    return _sliding_sum(one_hot, window_size, causal)
+    return _sliding_sum(one_hot, window_size, causal, y_true)
 
 
 # ---------------------------------------------------------------------------
@@ -188,6 +222,7 @@ def temporal_rerank(
     strategy: str = "prob_sum",
     k_vote: int = 3,
     causal: bool = False,
+    y_true: np.ndarray | None = None,
 ) -> np.ndarray:
     """
     Apply temporal re-ranking and return re-ranked predictions (N,).
@@ -201,17 +236,20 @@ def temporal_rerank(
     strategy     : "prob_sum" | "topk_vote" | "majority"
     k_vote       : int  — only used by "topk_vote" strategy
     causal       : bool — True = past-only window (streaming mode)
+    y_true       : (N,) optional — used for segment-aware windowing so the
+                   sliding window never crosses a class-boundary in the data.
+                   Pass y_true whenever evaluating on class-sorted datasets.
 
     Returns
     -------
     y_reranked : (N,)  int64
     """
     if strategy == "prob_sum":
-        return rerank_prob_sum(topk_indices, topk_probs, window_size, n_classes, causal)
+        return rerank_prob_sum(topk_indices, topk_probs, window_size, n_classes, causal, y_true)
     elif strategy == "topk_vote":
-        return rerank_topk_vote(topk_indices, topk_probs, window_size, n_classes, k_vote, causal)
+        return rerank_topk_vote(topk_indices, topk_probs, window_size, n_classes, k_vote, causal, y_true)
     elif strategy == "majority":
-        return rerank_majority(topk_indices, window_size, n_classes, causal)
+        return rerank_majority(topk_indices, window_size, n_classes, causal, y_true)
     else:
         raise ValueError(f"Unknown strategy: {strategy!r}. Choose from prob_sum, topk_vote, majority")
 
@@ -228,6 +266,7 @@ def rerank_accuracy_table(
 ) -> dict[tuple[str, int], float]:
     """
     Compute re-ranked accuracy for every (strategy, window_size) combination.
+    y_true is passed through so the window stays within same-class segments.
 
     Returns
     -------
@@ -240,6 +279,7 @@ def rerank_accuracy_table(
                 topk_indices, topk_probs,
                 window_size=w, n_classes=n_classes,
                 strategy=strategy, k_vote=k_vote, causal=causal,
+                y_true=y_true,
             )
             acc = float((y_rr == y_true).mean())
             results[(strategy, w)] = acc
@@ -259,14 +299,14 @@ def rerank_per_class_accuracy(
 ) -> list[dict]:
     """
     Per-class accuracy after re-ranking with the given (strategy, window_size).
-
     Returns list of {class, n_windows, top1_acc, reranked_acc, gain}
     """
-    y_top1    = topk_indices[:, 0]
+    y_top1     = topk_indices[:, 0]
     y_reranked = temporal_rerank(
         topk_indices, topk_probs,
         window_size=window_size, n_classes=n_classes,
         strategy=strategy, k_vote=k_vote, causal=causal,
+        y_true=y_true,
     )
 
     rows = []
