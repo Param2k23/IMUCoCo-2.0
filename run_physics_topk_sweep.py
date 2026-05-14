@@ -139,6 +139,7 @@ def run_one_config(
         "--physics_k", str(physics_k),
         "--rerank_seed", str(args.seed),
         "--physics_weights", *weights_str.split(),
+        "--base_filters", str(args.base_filters),
     ]
     if hard_threshold is not None:
         cmd += ["--joint_limits_hard", str(hard_threshold)]
@@ -483,6 +484,10 @@ def parse_args():
     p.add_argument("--seed", type=int, default=0)
     p.add_argument("--skip_stages", default="",
                    help="Comma-separated stages to skip: A,B,C")
+    p.add_argument("--base_filters", type=int, default=128,
+                   help="base_filters for ResNet1D architecture. Must match the "
+                        "checkpoint (default: 128 for penalty_sweep models). "
+                        "Pass 64 for older checkpoints trained without --base_filters 128.")
     return p.parse_args()
 
 

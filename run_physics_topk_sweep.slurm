@@ -71,6 +71,8 @@ N_TRIALS_FINAL="${N_TRIALS_FINAL:-3000}"
 N_SENSORS="${N_SENSORS:-2,3,4,5}"
 SEED="${SEED:-0}"
 SKIP_STAGES="${SKIP_STAGES:-}"
+# Model architecture: must match the checkpoint (penalty_sweep trained with 128)
+BASE_FILTERS="${BASE_FILTERS:-128}"
 
 mkdir -p logs "$OUT_BASE"
 
@@ -82,6 +84,7 @@ echo "[sweep] data         : $DATA_NPZ"
 echo "[sweep] out_base     : $OUT_BASE"
 echo "[sweep] n_trials     : $N_TRIALS  (final: $N_TRIALS_FINAL)"
 echo "[sweep] n_sensors    : $N_SENSORS"
+echo "[sweep] base_filters : $BASE_FILTERS"
 echo "[sweep] skip_stages  : ${SKIP_STAGES:-<none>}"
 echo "[sweep] started      : $(date)"
 echo "============================================================"
@@ -108,6 +111,7 @@ fi
     --n_trials_final "$N_TRIALS_FINAL" \
     --n_sensors      "$N_SENSORS" \
     --seed           "$SEED" \
+    --base_filters   "$BASE_FILTERS" \
     ${SKIP_STAGES:+--skip_stages "$SKIP_STAGES"} \
     2>&1 | tee "${OUT_BASE}/sweep.log"
 
