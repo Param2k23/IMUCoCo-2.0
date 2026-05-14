@@ -123,6 +123,17 @@ def load_stats(stats_dir: str) -> dict:
         print(f"[load_stats] WARNING: {grav_path} not found")
         stats["gravity_distributions"] = None
 
+    # Per-region absolute orientation limits (anatomical eliminator)
+    pror_path = os.path.join(stats_dir, "per_region_orientation_limits.npy")
+    if os.path.exists(pror_path):
+        stats["per_region_orientation_limits"] = np.load(
+            pror_path, allow_pickle=True
+        ).item()
+        print(f"[load_stats] Loaded per_region_orientation_limits")
+    else:
+        print(f"[load_stats] WARNING: {pror_path} not found")
+        stats["per_region_orientation_limits"] = None
+
     return stats
 
 
@@ -483,6 +494,110 @@ def score_acceleration_profile(
 
 
 # ---------------------------------------------------------------------------
+# Option 5: Per-Region Absolute Orientation Scorer (anatomical eliminator)
+# ---------------------------------------------------------------------------
+def score_per_region_orientation(
+    combo: List[int],
+    X_samples: np.ndarray,
+    calibration: np.ndarray,
+    per_region_limits: Optional[dict],
+    hard_threshold: Optional[float] = None,
+) -> Tuple[float, dict]:
+    """
+    For each sensor i in the combo, hypothesise it is region combo[i] and check
+    whether its body-frame ZYX-Euler orientation falls inside that region's
+    training-derived envelope.
+
+    Per-frame penalty uses the same exp-decay-outside-envelope formulation as
+    score_kinematic_chain, so the score lives on [0, 1] and is directly
+    comparable. Aggregation: mean over frames, then mean over sensors.
+
+    If hard_threshold is given, any sensor whose violation fraction
+    (frames with non-zero outside-distance on any axis) exceeds the threshold
+    causes the entire combo to receive score 0 ("hard eliminated").
+
+    Args:
+        combo: List of region_ids
+        X_samples: (N_sensors, 9, T)
+        calibration: (24, 3, 3)
+        per_region_limits: dict from per_region_orientation_limits.npy
+                           {"loose": {region_id: {"min", "max"}},
+                            "strict": {region_id: {"min", "max"}}}
+        hard_threshold: if set, frac_violations > threshold => combo dropped
+
+    Returns:
+        score: float in [0, 1]
+        diagnostics: per-sensor dict
+    """
+    if per_region_limits is None:
+        return 0.5, {"error": "No per_region_limits available"}
+
+    loose = per_region_limits.get("loose", {}) if isinstance(per_region_limits, dict) else {}
+    strict = per_region_limits.get("strict", {}) if isinstance(per_region_limits, dict) else {}
+
+    sensor_scores: dict = {}
+    sensor_violation_fracs: dict = {}
+    hard_eliminated = False
+    violator: Optional[str] = None
+
+    for i, region_id in enumerate(combo):
+        # Look up envelope (prefer strict; fallback loose).
+        if region_id in strict:
+            lo = np.asarray(strict[region_id]["min"], dtype=np.float32)
+            hi = np.asarray(strict[region_id]["max"], dtype=np.float32)
+        elif region_id in loose:
+            lo = np.asarray(loose[region_id]["min"], dtype=np.float32)
+            hi = np.asarray(loose[region_id]["max"], dtype=np.float32)
+        else:
+            sensor_scores[region_id] = 0.5
+            sensor_violation_fracs[region_id] = 0.0
+            continue
+
+        r6d, _ = extract_imu_components(X_samples[i])  # (T, 6)
+        rot = r6d_to_rotmat(r6d)                       # (T, 3, 3)
+        if rot.ndim == 2:
+            rot = rot[None, :, :]
+        cal = calibration[region_id]                   # (3, 3)
+        rot_body = rot @ cal                           # (T, 3, 3)
+        eulers = _rotmat_to_euler_zyx_batch(rot_body)  # (T, 3)
+
+        midpoint = 0.5 * (lo + hi)
+        half = np.maximum(0.5 * (hi - lo), 1e-3)
+
+        outside = np.maximum(np.abs(eulers - midpoint) - half, 0.0) / half  # (T, 3)
+        per_frame = np.exp(-outside.sum(axis=-1))  # (T,)
+        score = float(per_frame.mean())
+
+        # Violation = any axis is outside envelope on this frame.
+        violations = np.any(outside > 0.0, axis=-1)  # (T,)
+        frac_viol = float(violations.mean()) if violations.size else 0.0
+
+        sensor_scores[region_id] = score
+        sensor_violation_fracs[region_id] = frac_viol
+
+        if hard_threshold is not None and frac_viol > hard_threshold:
+            hard_eliminated = True
+            violator = REGION_NAMES[region_id]
+
+    if hard_eliminated:
+        return 0.0, {
+            "hard_eliminated": True,
+            "violator": violator,
+            "sensor_scores": sensor_scores,
+            "sensor_violation_fracs": sensor_violation_fracs,
+        }
+
+    avg = float(np.mean(list(sensor_scores.values()))) if sensor_scores else 0.5
+    diagnostics = {
+        "hard_eliminated": False,
+        "sensor_scores": sensor_scores,
+        "sensor_violation_fracs": sensor_violation_fracs,
+        "avg_score": avg,
+    }
+    return avg, diagnostics
+
+
+# ---------------------------------------------------------------------------
 # Option 4: Combined Multi-Signal Scorer
 # ---------------------------------------------------------------------------
 def combined_scorer(
@@ -490,13 +605,14 @@ def combined_scorer(
     X_samples: np.ndarray,
     calibration: np.ndarray,
     stats: dict,
-    weights: Tuple[float, float, float] = (0.5, 0.0, 0.5),
+    weights: Tuple[float, ...] = (0.4, 0.0, 0.4, 0.2),
     activity_id: Optional[int] = None,
+    joint_limits_hard: Optional[float] = None,
 ) -> Tuple[float, dict]:
     """
     Combined weighted scorer.
 
-    Default weights: (kinematic=0.5, gravity=0.0, accel=0.5).
+    Default weights: (kinematic=0.4, gravity=0.0, accel=0.4, joint_limits=0.2).
 
     Gravity is weighted 0 by default because the vimu_joints acceleration
     channel in this dataset is *linear* acceleration (gravity removed), so the
@@ -504,19 +620,36 @@ def combined_scorer(
     here so it can be re-enabled if total acceleration is later available
     (e.g. raw TotalCapture IMUs); see PHYSICS_VERIFICATION_PLAN.md §10.
 
+    Joint-limits is the per-region absolute orientation eliminator
+    (PHYSICS_INTEGRATION_PLAN.md). Soft by default; pass joint_limits_hard
+    to convert to a hard eliminator (combo dropped if any sensor's violation
+    fraction exceeds the threshold).
+
     Args:
         combo: List of region_ids
         X_samples: (N_sensors, 9, T)
         calibration: (24, 3, 3)
         stats: dict of precomputed statistics
-        weights: (w1, w2, w3) for kinematic, gravity, acceleration
+        weights: (w_kin, w_grav, w_acc) or (w_kin, w_grav, w_acc, w_joint)
+                 Three-tuple is accepted for backwards compatibility; the
+                 joint-limits weight defaults to 0 in that case.
         activity_id: optional activity label
+        joint_limits_hard: if set (e.g. 0.3), any sensor with violation
+                           fraction > threshold zero-scores the combo.
 
     Returns:
         total_score: float in [0, 1]
         diagnostics: dict with all sub-scores
     """
-    w1, w2, w3 = weights
+    if len(weights) == 3:
+        w1, w2, w3 = weights
+        w4 = 0.0
+    elif len(weights) == 4:
+        w1, w2, w3, w4 = weights
+    else:
+        raise ValueError(
+            f"weights must have 3 or 4 entries, got {len(weights)}"
+        )
 
     # Kinematic score
     kinematic_score, kin_diag = score_kinematic_chain(
@@ -533,18 +666,54 @@ def combined_scorer(
         combo, X_samples, stats.get("accel_distributions"), activity_id
     )
 
+    # Per-region absolute orientation score (anatomical eliminator)
+    pror_limits = stats.get("per_region_orientation_limits")
+    if pror_limits is not None and (w4 > 0.0 or joint_limits_hard is not None):
+        joint_limits_score, jl_diag = score_per_region_orientation(
+            combo, X_samples, calibration, pror_limits,
+            hard_threshold=joint_limits_hard,
+        )
+    else:
+        joint_limits_score, jl_diag = 0.5, {"skipped": True}
+
+    # If a hard elimination fired, short-circuit the whole combo to 0.
+    if jl_diag.get("hard_eliminated", False):
+        diagnostics = {
+            "kinematic_score": kinematic_score,
+            "gravity_score": gravity_score,
+            "accel_score": accel_score,
+            "joint_limits_score": joint_limits_score,
+            "weights": {"w1": w1, "w2": w2, "w3": w3, "w4": w4},
+            "total_score": 0.0,
+            "hard_eliminated": True,
+            "violator": jl_diag.get("violator"),
+            "kinematics": kin_diag,
+            "gravity": grav_diag,
+            "acceleration": acc_diag,
+            "joint_limits": jl_diag,
+        }
+        return 0.0, diagnostics
+
     # Weighted combination
-    total = w1 * kinematic_score + w2 * gravity_score + w3 * accel_score
+    total = (
+        w1 * kinematic_score
+        + w2 * gravity_score
+        + w3 * accel_score
+        + w4 * joint_limits_score
+    )
 
     diagnostics = {
         "kinematic_score": kinematic_score,
         "gravity_score": gravity_score,
         "accel_score": accel_score,
-        "weights": {"w1": w1, "w2": w2, "w3": w3},
+        "joint_limits_score": joint_limits_score,
+        "weights": {"w1": w1, "w2": w2, "w3": w3, "w4": w4},
         "total_score": float(total),
+        "hard_eliminated": False,
         "kinematics": kin_diag,
         "gravity": grav_diag,
         "acceleration": acc_diag,
+        "joint_limits": jl_diag,
     }
 
     return float(total), diagnostics
@@ -559,8 +728,12 @@ def main():
     parser.add_argument("--calibration", default="calibration", help="Calibration directory")
     parser.add_argument("--stats", default="stats", help="Statistics directory")
     parser.add_argument("--combo", type=int, nargs="+", help="Combo to test (list of region IDs)")
-    parser.add_argument("--weights", type=float, nargs=3, default=[0.4, 0.3, 0.3],
-                        help="Weights for kinematic, gravity, acceleration")
+    parser.add_argument("--weights", type=float, nargs="+",
+                        default=[0.4, 0.0, 0.4, 0.2],
+                        help="Weights for kinematic, gravity, acceleration[, joint_limits]")
+    parser.add_argument("--joint_limits_hard", type=float, default=None,
+                        help="If set, sensors with violation fraction above this "
+                             "threshold zero-score the combo (anatomical eliminator).")
 
     args = parser.parse_args()
 
@@ -592,17 +765,22 @@ def main():
                 X_samples[i] = X[mask][0]
 
         score, diag = combined_scorer(
-            combo, X_samples, calibration, stats, weights=args.weights
+            combo, X_samples, calibration, stats,
+            weights=tuple(args.weights),
+            joint_limits_hard=args.joint_limits_hard,
         )
 
         print(f"\nCombined Score: {score:.4f}")
-        print(f"  Kinematic:   {diag['kinematic_score']:.4f}")
-        print(f"  Gravity:     {diag['gravity_score']:.4f}")
+        print(f"  Kinematic:    {diag['kinematic_score']:.4f}")
+        print(f"  Gravity:      {diag['gravity_score']:.4f}")
         print(f"  Acceleration: {diag['accel_score']:.4f}")
+        print(f"  Joint-limits: {diag['joint_limits_score']:.4f}"
+              f"  (hard_eliminated={diag.get('hard_eliminated', False)})")
 
         print("\nDiagnostics:")
+        skip = {"kinematics", "gravity", "acceleration", "joint_limits"}
         for k, v in diag.items():
-            if k not in ["kinematics", "gravity", "acceleration"]:
+            if k not in skip:
                 print(f"  {k}: {v}")
 
 

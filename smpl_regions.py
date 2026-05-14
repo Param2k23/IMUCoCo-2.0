@@ -50,6 +50,9 @@ REGION_NAMES = [
 
 NUM_REGIONS = len(REGION_NAMES)   # 24
 
+# Reverse map: region name -> integer label
+REGION_BY_NAME = {name: idx for idx, name in enumerate(REGION_NAMES)}
+
 # ---------------------------------------------------------------------------
 # SMPL kinematic tree parent mapping (region_id -> parent_region_id, -1 for root)
 # Matches standard SMPL 24-joint skeleton (see Appendix A)

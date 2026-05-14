@@ -177,6 +177,85 @@ def rotmat_to_euler_angles(R: np.ndarray) -> np.ndarray:
     return np.array([x, y, z], dtype=np.float32)
 
 
+def _rotmat_to_euler_zyx_batch(R: np.ndarray) -> np.ndarray:
+    """Batched ZYX Euler conversion. R: (..., 3, 3) -> (..., 3) [x, y, z]."""
+    R = np.asarray(R, dtype=np.float32)
+    sy = np.sqrt(R[..., 0, 0] ** 2 + R[..., 1, 0] ** 2 + 1e-8)
+    x = np.arctan2(R[..., 2, 1], R[..., 2, 2])
+    y = np.arctan2(-R[..., 2, 0], sy)
+    z = np.arctan2(R[..., 1, 0], R[..., 0, 0])
+    return np.stack([x, y, z], axis=-1).astype(np.float32)
+
+
+# ---------------------------------------------------------------------------
+# 1b. Per-Region Absolute Orientation Limits (anatomical eliminator stats)
+# ---------------------------------------------------------------------------
+def compute_per_region_orientation_limits(
+    X: np.ndarray,
+    y: np.ndarray,
+    calibration: np.ndarray,
+) -> Dict:
+    """
+    For each region r, compute the per-axis ZYX-Euler envelope of body-frame
+    orientations observed in training data.
+
+    Body frame: rot_body[t] = r6d_to_rotmat(r6d[t]) @ calibration[r]
+    (matches verify_combo.py:228 exactly).
+
+    All T frames per sample are used to maximize sample count (see
+    PHYSICS_VERIFICATION_PLAN.md §9.4 for rationale).
+
+    Returns
+    -------
+    dict
+        {
+          "loose":  {region_id: {"min": (3,), "max": (3,)}},   # 5/95 percentile
+          "strict": {region_id: {"min": (3,), "max": (3,)}},   # 10/90 percentile
+        }
+    """
+    print("\n[compute_per_region_orientation_limits] Computing...")
+    loose_limits: Dict[int, Dict[str, np.ndarray]] = {}
+    strict_limits: Dict[int, Dict[str, np.ndarray]] = {}
+
+    for region_id in range(24):
+        mask = y == region_id
+        if mask.sum() == 0:
+            continue
+
+        region_X = X[mask]
+        cal = calibration[region_id]  # (3, 3)
+
+        eulers_list = []
+        for i in range(len(region_X)):
+            r6d, _ = extract_imu_components(region_X[i])      # (T, 6)
+            rot = r6d_to_rotmat(r6d)                          # (T, 3, 3)
+            rot_body = rot @ cal                              # (T, 3, 3)
+            eulers = _rotmat_to_euler_zyx_batch(rot_body)     # (T, 3)
+            eulers_list.append(eulers)
+
+        if not eulers_list:
+            continue
+
+        eulers_all = np.concatenate(eulers_list, axis=0)  # (N*T, 3)
+
+        loose_limits[region_id] = {
+            "min": np.percentile(eulers_all, 5, axis=0).astype(np.float32),
+            "max": np.percentile(eulers_all, 95, axis=0).astype(np.float32),
+        }
+        strict_limits[region_id] = {
+            "min": np.percentile(eulers_all, 10, axis=0).astype(np.float32),
+            "max": np.percentile(eulers_all, 90, axis=0).astype(np.float32),
+        }
+        rng_strict = strict_limits[region_id]["max"] - strict_limits[region_id]["min"]
+        print(
+            f"  {REGION_NAMES[region_id]:12s} n={len(eulers_all):>6d}"
+            f"  strict_range_deg=[{np.degrees(rng_strict[0]):6.1f},"
+            f" {np.degrees(rng_strict[1]):6.1f}, {np.degrees(rng_strict[2]):6.1f}]"
+        )
+
+    return {"loose": loose_limits, "strict": strict_limits}
+
+
 # ---------------------------------------------------------------------------
 # 2. Acceleration Distributions
 # ---------------------------------------------------------------------------
@@ -370,6 +449,14 @@ def main():
     joint_limits = compute_joint_angle_limits(X, y, calibration)
     np.save(os.path.join(args.output_dir, "joint_angle_limits.npy"), joint_limits)
     print(f"\nSaved joint_angle_limits.npy")
+
+    # 1b. Per-region absolute orientation limits (anatomical eliminator stats)
+    per_region_limits = compute_per_region_orientation_limits(X, y, calibration)
+    np.save(
+        os.path.join(args.output_dir, "per_region_orientation_limits.npy"),
+        per_region_limits,
+    )
+    print("Saved per_region_orientation_limits.npy")
 
     # 2. Acceleration distributions
     accel_dist = compute_accel_distributions(

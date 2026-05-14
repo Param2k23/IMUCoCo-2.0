@@ -51,6 +51,8 @@ from smpl_regions import (
     spatial_error as compute_spatial_error,
 )
 from temporal_rerank import rerank_accuracy_table, rerank_per_class_accuracy
+from topk_combo_rerank import predict_with_topk_physics
+from verify_combo import load_calibration, load_stats
 
 logging.basicConfig(
     level=logging.INFO, format="%(asctime)s  %(levelname)-8s  %(message)s"
@@ -474,6 +476,128 @@ def left_right_confusion_analysis(
 
 
 # ---------------------------------------------------------------------------
+# Physics-rerank evaluation (combines top-k with physics scoring)
+# ---------------------------------------------------------------------------
+
+
+def evaluate_physics_rerank(
+    raw_X: np.ndarray,                 # (N, 9, T) — un-normalised IMU data
+    y_true: np.ndarray,                # (N,)
+    topk_indices: np.ndarray,          # (N, k_max)
+    topk_probs:   np.ndarray,          # (N, k_max)
+    calibration:  np.ndarray,          # (24, 3, 3)
+    stats: dict,
+    n_sensors_list: list[int],         # e.g. [2, 3, 4, 5]
+    n_windows: int = 1,
+    n_trials: int = 100,
+    k: int = 3,
+    weights: tuple = (0.4, 0.0, 0.4, 0.2),
+    joint_limits_hard: float | None = None,
+    eliminator_only: bool = False,
+    seed: int = 0,
+) -> dict:
+    """
+    For each x in n_sensors_list, sample n_trials of x distinct ground-truth
+    regions; for each trial draw n_windows windows per region; run the
+    top-k -> physics -> rerank pipeline; report exact-match and per-sensor
+    accuracy of the best-scoring combo.
+
+    Returns
+    -------
+    summary : dict keyed by str(x_sensors) ->
+              {exact_match_acc, per_sensor_acc, n_trials, n_eliminated_mean}
+    """
+    rng = np.random.default_rng(seed)
+    available_regions = np.unique(y_true)
+
+    # Index windows by region for fast sampling.
+    region_to_idx = {int(r): np.where(y_true == r)[0] for r in available_regions}
+
+    summary: dict = {}
+
+    for x in n_sensors_list:
+        if x > len(available_regions):
+            log.warning(
+                "Skipping x=%d: only %d distinct regions available in y_true",
+                x, len(available_regions),
+            )
+            continue
+
+        n_exact = 0
+        per_sensor_correct = 0
+        per_sensor_total = 0
+        n_eliminated_total = 0
+        n_combos_total = 0
+
+        for _ in range(n_trials):
+            # Pick x distinct GT regions for this trial.
+            chosen = rng.choice(available_regions, size=x, replace=False)
+            chosen = chosen.astype(np.int64)
+
+            # For each chosen region, draw n_windows window indices.
+            sensor_idx_buf = np.zeros((x, n_windows, topk_indices.shape[1]),
+                                      dtype=np.int64)
+            sensor_p_buf = np.zeros((x, n_windows, topk_probs.shape[1]),
+                                    dtype=np.float32)
+            X_per_sensor = np.zeros((x, raw_X.shape[1], raw_X.shape[2]),
+                                    dtype=np.float32)
+
+            for s, r in enumerate(chosen):
+                pool = region_to_idx[int(r)]
+                if len(pool) == 0:
+                    # Should not happen because we sampled from y_true uniques.
+                    continue
+                draw = rng.choice(pool, size=min(n_windows, len(pool)),
+                                  replace=len(pool) < n_windows)
+                sensor_idx_buf[s, :len(draw)] = topk_indices[draw]
+                sensor_p_buf[s, :len(draw)] = topk_probs[draw]
+                # For physics, use the first drawn window. (We could average
+                # but the physics scorer naturally consumes a single (9, T).)
+                X_per_sensor[s] = raw_X[draw[0]]
+
+            ranked = predict_with_topk_physics(
+                sensor_idx_buf, sensor_p_buf, X_per_sensor,
+                calibration, stats,
+                k=k, weights=weights,
+                joint_limits_hard=joint_limits_hard,
+                eliminator_only=eliminator_only,
+            )
+            n_combos_total += len(ranked)
+            n_eliminated_total += sum(1 for r in ranked if r["hard_eliminated"])
+
+            if not ranked:
+                continue
+            best = ranked[0]
+            true_tuple = tuple(int(c) for c in chosen)
+            pred_tuple = best["combo"]
+
+            if pred_tuple == true_tuple:
+                n_exact += 1
+            per_sensor_correct += sum(
+                1 for a, b in zip(pred_tuple, true_tuple) if a == b
+            )
+            per_sensor_total += x
+
+        exact_acc = n_exact / max(1, n_trials)
+        per_sensor_acc = per_sensor_correct / max(1, per_sensor_total)
+        n_elim_mean = n_eliminated_total / max(1, n_trials)
+
+        summary[str(x)] = {
+            "exact_match_acc": round(exact_acc, 6),
+            "per_sensor_acc": round(per_sensor_acc, 6),
+            "n_trials": n_trials,
+            "n_eliminated_mean": round(n_elim_mean, 4),
+            "n_combos_total": n_combos_total,
+        }
+        log.info(
+            "  x=%d  exact=%.4f  per_sensor=%.4f  trials=%d  elim_mean=%.2f",
+            x, exact_acc, per_sensor_acc, n_trials, n_elim_mean,
+        )
+
+    return summary
+
+
+# ---------------------------------------------------------------------------
 # Main evaluation
 # ---------------------------------------------------------------------------
 
@@ -495,13 +619,13 @@ def run_evaluation(args) -> None:
     elif ckpt_test_subj >= 0:
         ckpt_subj = ckpt_test_subj
         log.info("No --test_subject provided; using checkpoint test_subj=%d", ckpt_subj)
-    X, y_true = load_test_data(args.data, ckpt_subj)
-    validate_input_array(X)
-    if X.shape[1] != ckpt_in_channels:
+    raw_X, y_true = load_test_data(args.data, ckpt_subj)
+    validate_input_array(raw_X)
+    if raw_X.shape[1] != ckpt_in_channels:
         raise ValueError(
-            f"Input channel mismatch: dataset has {X.shape[1]} channels but checkpoint expects {ckpt_in_channels}."
+            f"Input channel mismatch: dataset has {raw_X.shape[1]} channels but checkpoint expects {ckpt_in_channels}."
         )
-    X = apply_channel_stats(X, norm_mean, norm_std)
+    X = apply_channel_stats(raw_X, norm_mean, norm_std)
 
     # ── Per-window inference ────────────────────────────────────────────
     log.info("Running inference on %d windows …", len(X))
@@ -586,6 +710,62 @@ def run_evaluation(args) -> None:
         rr_table = {}
         pc_rr = []
         log.info("Re-ranking disabled (--rerank_windows not set).")
+
+    # ── Physics-based combo re-ranking ──────────────────────────────────
+    physics_rerank_summary: dict = {}
+    physics_rerank_summary_hard: dict = {}
+    if args.physics_rerank:
+        log.info("\n── Physics combo re-ranking ───────────────────────────────")
+        log.info("  Loading calibration & stats …")
+        try:
+            calibration = load_calibration(args.physics_calibration)
+            stats = load_stats(args.physics_stats)
+        except Exception as e:
+            log.error("Failed to load physics calibration/stats: %s", e)
+            calibration = None
+            stats = None
+
+        if calibration is not None and stats is not None:
+            n_sensors_list = sorted(set(args.rerank_n_sensors))
+            log.info(
+                "  n_sensors=%s  n_windows=%d  n_trials=%d  k=%d  weights=%s",
+                n_sensors_list, args.rerank_n_windows, args.rerank_n_trials,
+                args.physics_k, args.physics_weights,
+            )
+
+            log.info("  --- soft mode (no hard elimination) ---")
+            physics_rerank_summary = evaluate_physics_rerank(
+                raw_X=raw_X, y_true=y_true,
+                topk_indices=topk_indices, topk_probs=topk_probs,
+                calibration=calibration, stats=stats,
+                n_sensors_list=n_sensors_list,
+                n_windows=args.rerank_n_windows,
+                n_trials=args.rerank_n_trials,
+                k=args.physics_k,
+                weights=tuple(args.physics_weights),
+                joint_limits_hard=None,
+                eliminator_only=False,
+                seed=args.rerank_seed,
+            )
+
+            if args.joint_limits_hard is not None:
+                log.info(
+                    "  --- hard mode (eliminate when violation_frac > %.2f) ---",
+                    args.joint_limits_hard,
+                )
+                physics_rerank_summary_hard = evaluate_physics_rerank(
+                    raw_X=raw_X, y_true=y_true,
+                    topk_indices=topk_indices, topk_probs=topk_probs,
+                    calibration=calibration, stats=stats,
+                    n_sensors_list=n_sensors_list,
+                    n_windows=args.rerank_n_windows,
+                    n_trials=args.rerank_n_trials,
+                    k=args.physics_k,
+                    weights=tuple(args.physics_weights),
+                    joint_limits_hard=args.joint_limits_hard,
+                    eliminator_only=False,
+                    seed=args.rerank_seed,
+                )
 
     # ── Majority-vote filter ────────────────────────────────────────────
     y_voted = majority_vote_stream(y_pred, k=args.vote_k)
@@ -702,6 +882,8 @@ def run_evaluation(args) -> None:
             "all_configs"  : rerank_results,
             "per_class_best_config": pc_rr,
         },
+        "physics_rerank_summary": physics_rerank_summary,
+        "physics_rerank_summary_hard": physics_rerank_summary_hard,
         "majority_vote_accuracy": voted_acc,
         "vote_k": args.vote_k,
         "locked_fraction": locked_pct / 100,
@@ -811,6 +993,60 @@ def parse_args():
         help="Use causal (past-only) window instead of centred window. "
              "Use for streaming/real-time evaluation.",
     )
+    # ── Physics combo re-ranking ────────────────────────────────────────────
+    p.add_argument(
+        "--physics_rerank",
+        action="store_true",
+        default=False,
+        help="Run physics-based combo re-ranking on top-k probs.",
+    )
+    p.add_argument(
+        "--physics_calibration", default="calibration",
+        help="Directory with region_sensor_rotmats.npy",
+    )
+    p.add_argument(
+        "--physics_stats", default="stats",
+        help="Directory with joint_angle_limits.npy, accel_distributions.npy, "
+             "gravity_distributions.npy, per_region_orientation_limits.npy",
+    )
+    p.add_argument(
+        "--rerank_n_sensors",
+        type=lambda s: sorted(set(int(x) for x in s.split(",") if int(x) > 0)),
+        default=[2, 3, 4, 5],
+        help="Comma-separated list of x (number of simultaneous sensors per "
+             "synthetic combo trial). Default 2,3,4,5.",
+    )
+    p.add_argument(
+        "--rerank_n_windows", type=int, default=1,
+        help="How many windows per sensor are aggregated for top-k.",
+    )
+    p.add_argument(
+        "--rerank_n_trials", type=int, default=200,
+        help="Number of synthetic combos to draw per x.",
+    )
+    p.add_argument(
+        "--rerank_seed", type=int, default=0,
+        help="RNG seed for combo sampling (reproducibility).",
+    )
+    p.add_argument(
+        "--physics_k", type=int, default=3,
+        help="Top-k per sensor used for combo enumeration (smaller = fewer "
+             "candidates, larger = more recall). Default 3.",
+    )
+    p.add_argument(
+        "--physics_weights", type=float, nargs="+",
+        default=[0.4, 0.0, 0.4, 0.2],
+        help="Weights for [kinematic, gravity, accel, joint_limits]. "
+             "Default 0.4 0.0 0.4 0.2.",
+    )
+    p.add_argument(
+        "--joint_limits_hard", type=float, default=None,
+        help="If set, additionally evaluate the pipeline in hard-elimination "
+             "mode. Threshold = max fraction of frames a sensor may violate "
+             "its per-region absolute orientation envelope before the combo "
+             "is dropped (e.g. 0.3).",
+    )
+
     p.add_argument(
         "--smoke", action="store_true", help="Run internal self-tests and exit"
     )
