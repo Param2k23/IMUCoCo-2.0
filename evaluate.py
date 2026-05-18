@@ -480,6 +480,10 @@ def left_right_confusion_analysis(
 # ---------------------------------------------------------------------------
 
 
+def _maybe_float(v):
+    return None if v is None else float(v)
+
+
 def evaluate_physics_rerank(
     raw_X: np.ndarray,                 # (N, 9, T) — un-normalised IMU data
     y_true: np.ndarray,                # (N,)
@@ -495,12 +499,18 @@ def evaluate_physics_rerank(
     joint_limits_hard: float | None = None,
     eliminator_only: bool = False,
     seed: int = 0,
+    predictions_jsonl_path: str | None = None,
 ) -> dict:
     """
     For each x in n_sensors_list, sample n_trials of x distinct ground-truth
     regions; for each trial draw n_windows windows per region; run the
     top-k -> physics -> rerank pipeline; report exact-match and per-sensor
     accuracy of the best-scoring combo.
+
+    If `predictions_jsonl_path` is set, per-trial diagnostics (true tuple,
+    classifier-only top-1, physics top-1, per-scorer components, candidate
+    set membership of GT) are appended to that JSONL file. Used by
+    analyze_physics_diagnostic.py.
 
     Returns
     -------
@@ -514,6 +524,11 @@ def evaluate_physics_rerank(
     region_to_idx = {int(r): np.where(y_true == r)[0] for r in available_regions}
 
     summary: dict = {}
+
+    jsonl_fh = None
+    if predictions_jsonl_path:
+        os.makedirs(os.path.dirname(predictions_jsonl_path) or ".", exist_ok=True)
+        jsonl_fh = open(predictions_jsonl_path, "w")
 
     for x in n_sensors_list:
         if x > len(available_regions):
@@ -529,7 +544,7 @@ def evaluate_physics_rerank(
         n_eliminated_total = 0
         n_combos_total = 0
 
-        for _ in range(n_trials):
+        for trial_idx in range(n_trials):
             # Pick x distinct GT regions for this trial.
             chosen = rng.choice(available_regions, size=x, replace=False)
             chosen = chosen.astype(np.int64)
@@ -578,6 +593,42 @@ def evaluate_physics_rerank(
             )
             per_sensor_total += x
 
+            if jsonl_fh is not None:
+                cls_sorted = sorted(
+                    ranked, key=lambda r: r["classifier_prob"], reverse=True
+                )
+                cls_top1 = cls_sorted[0]["combo"]
+                gt_rank_cls = next(
+                    (i for i, r in enumerate(cls_sorted) if r["combo"] == true_tuple),
+                    -1,
+                )
+                gt_rank_phys = next(
+                    (i for i, r in enumerate(ranked) if r["combo"] == true_tuple),
+                    -1,
+                )
+                record = {
+                    "n_sensors": int(x),
+                    "trial_idx": int(trial_idx),
+                    "true_regions": list(true_tuple),
+                    "classifier_only_top1": list(cls_top1),
+                    "physics_top1": list(pred_tuple),
+                    "physics_top1_scores": {
+                        "classifier_prob": float(best["classifier_prob"]),
+                        "physics_score":   float(best["physics_score"]),
+                        "kinematic_score": _maybe_float(best.get("kinematic_score")),
+                        "gravity_score":   _maybe_float(best.get("gravity_score")),
+                        "accel_score":     _maybe_float(best.get("accel_score")),
+                        "joint_limits_score": _maybe_float(best.get("joint_limits_score")),
+                        "final_score":     float(best["final_score"]),
+                        "hard_eliminated": bool(best.get("hard_eliminated", False)),
+                    },
+                    "n_candidates":    len(ranked),
+                    "gt_in_candidates": gt_rank_phys >= 0,
+                    "gt_rank_classifier": int(gt_rank_cls),
+                    "gt_rank_physics":    int(gt_rank_phys),
+                }
+                jsonl_fh.write(json.dumps(record) + "\n")
+
         exact_acc = n_exact / max(1, n_trials)
         per_sensor_acc = per_sensor_correct / max(1, per_sensor_total)
         n_elim_mean = n_eliminated_total / max(1, n_trials)
@@ -593,6 +644,9 @@ def evaluate_physics_rerank(
             "  x=%d  exact=%.4f  per_sensor=%.4f  trials=%d  elim_mean=%.2f",
             x, exact_acc, per_sensor_acc, n_trials, n_elim_mean,
         )
+
+    if jsonl_fh is not None:
+        jsonl_fh.close()
 
     return summary
 
@@ -746,6 +800,9 @@ def run_evaluation(args) -> None:
                 joint_limits_hard=None,
                 eliminator_only=False,
                 seed=args.rerank_seed,
+                predictions_jsonl_path=os.path.join(
+                    args.out_dir, "physics_rerank_predictions.jsonl"
+                ),
             )
 
             if args.joint_limits_hard is not None:
@@ -765,6 +822,9 @@ def run_evaluation(args) -> None:
                     joint_limits_hard=args.joint_limits_hard,
                     eliminator_only=False,
                     seed=args.rerank_seed,
+                    predictions_jsonl_path=os.path.join(
+                        args.out_dir, "physics_rerank_predictions_hard.jsonl"
+                    ),
                 )
 
     # ── Majority-vote filter ────────────────────────────────────────────
