@@ -1,0 +1,670 @@
+{
+  "out_base": "results/penalty_sweep/physics_diagnostic_20260517_235338",
+  "configs_found": [
+    "baseline_classifier_only",
+    "pure_kin",
+    "pure_acc",
+    "pure_jointlim_soft",
+    "default_blend"
+  ],
+  "ceiling": {
+    "2": {
+      "n_trials": 200,
+      "exact_match_ceiling": 0.94,
+      "per_sensor_ceiling_estimate": 0.94
+    },
+    "3": {
+      "n_trials": 200,
+      "exact_match_ceiling": 0.93,
+      "per_sensor_ceiling_estimate": 0.93
+    },
+    "4": {
+      "n_trials": 200,
+      "exact_match_ceiling": 0.875,
+      "per_sensor_ceiling_estimate": 0.875
+    },
+    "5": {
+      "n_trials": 200,
+      "exact_match_ceiling": 0.885,
+      "per_sensor_ceiling_estimate": 0.885
+    }
+  },
+  "attribution": {
+    "pure_kin": {
+      "n_trials_paired": 800,
+      "n_sensors_paired": 2800,
+      "n_fixed": 44,
+      "n_broken": 112,
+      "net_fix": -68,
+      "per_sensor_acc_baseline": 0.8232,
+      "per_sensor_acc_candidate": 0.7989,
+      "delta_per_sensor_acc": -0.0243,
+      "exact_match_baseline": 0.5312,
+      "exact_match_candidate": 0.4725,
+      "delta_exact_match": -0.0587,
+      "per_x": {
+        "2": {
+          "n_trials": 200,
+          "n_fixed": 4,
+          "n_broken": 9,
+          "net_fix": -5,
+          "per_sensor_acc_baseline": 0.8275,
+          "per_sensor_acc_candidate": 0.815,
+          "exact_match_baseline": 0.68,
+          "exact_match_candidate": 0.65
+        },
+        "3": {
+          "n_trials": 200,
+          "n_fixed": 6,
+          "n_broken": 24,
+          "net_fix": -18,
+          "per_sensor_acc_baseline": 0.8267,
+          "per_sensor_acc_candidate": 0.7967,
+          "exact_match_baseline": 0.565,
+          "exact_match_candidate": 0.49
+        },
+        "4": {
+          "n_trials": 200,
+          "n_fixed": 17,
+          "n_broken": 44,
+          "net_fix": -27,
+          "per_sensor_acc_baseline": 0.82,
+          "per_sensor_acc_candidate": 0.7863,
+          "exact_match_baseline": 0.475,
+          "exact_match_candidate": 0.355
+        },
+        "5": {
+          "n_trials": 200,
+          "n_fixed": 17,
+          "n_broken": 35,
+          "net_fix": -18,
+          "per_sensor_acc_baseline": 0.822,
+          "per_sensor_acc_candidate": 0.804,
+          "exact_match_baseline": 0.405,
+          "exact_match_candidate": 0.395
+        }
+      },
+      "top_fixed_confusion_pairs": [
+        {
+          "true": "r_hip",
+          "predicted_by_baseline": "l_hip",
+          "count": 5
+        },
+        {
+          "true": "l_forearm",
+          "predicted_by_baseline": "l_upper_arm",
+          "count": 5
+        },
+        {
+          "true": "neck",
+          "predicted_by_baseline": "spine_upper",
+          "count": 4
+        },
+        {
+          "true": "r_forearm",
+          "predicted_by_baseline": "r_upper_arm",
+          "count": 4
+        },
+        {
+          "true": "l_thigh",
+          "predicted_by_baseline": "r_thigh",
+          "count": 4
+        },
+        {
+          "true": "r_hand",
+          "predicted_by_baseline": "r_forearm",
+          "count": 3
+        },
+        {
+          "true": "r_shin",
+          "predicted_by_baseline": "l_foot",
+          "count": 3
+        },
+        {
+          "true": "l_hand",
+          "predicted_by_baseline": "l_forearm",
+          "count": 3
+        },
+        {
+          "true": "r_hand",
+          "predicted_by_baseline": "r_upper_arm",
+          "count": 2
+        },
+        {
+          "true": "head",
+          "predicted_by_baseline": "spine_upper",
+          "count": 2
+        }
+      ],
+      "top_broken_confusion_pairs": [
+        {
+          "true": "spine_upper",
+          "newly_predicted": "head",
+          "count": 5
+        },
+        {
+          "true": "spine_upper",
+          "newly_predicted": "r_thigh",
+          "count": 4
+        },
+        {
+          "true": "l_upper_arm",
+          "newly_predicted": "l_shoulder",
+          "count": 4
+        },
+        {
+          "true": "l_upper_arm",
+          "newly_predicted": "l_forearm",
+          "count": 3
+        },
+        {
+          "true": "r_hip",
+          "newly_predicted": "r_shoulder",
+          "count": 3
+        },
+        {
+          "true": "l_shoulder",
+          "newly_predicted": "l_upper_arm",
+          "count": 3
+        },
+        {
+          "true": "l_upper_arm",
+          "newly_predicted": "r_upper_arm",
+          "count": 3
+        },
+        {
+          "true": "l_forearm",
+          "newly_predicted": "l_upper_arm",
+          "count": 3
+        },
+        {
+          "true": "r_upper_arm",
+          "newly_predicted": "r_forearm",
+          "count": 3
+        },
+        {
+          "true": "r_hip",
+          "newly_predicted": "l_shoulder",
+          "count": 3
+        }
+      ],
+      "stratified": {
+        "easy": {
+          "n_fixed": 1,
+          "n_broken": 46,
+          "net_fix": -45,
+          "per_sensor_acc_baseline": 0.9886,
+          "per_sensor_acc_candidate": 0.942,
+          "n_sensor_obs": 966
+        },
+        "hard": {
+          "n_fixed": 43,
+          "n_broken": 66,
+          "net_fix": -23,
+          "per_sensor_acc_baseline": 0.7361,
+          "per_sensor_acc_candidate": 0.7236,
+          "n_sensor_obs": 1834
+        }
+      }
+    },
+    "pure_acc": {
+      "n_trials_paired": 800,
+      "n_sensors_paired": 2800,
+      "n_fixed": 17,
+      "n_broken": 21,
+      "net_fix": -4,
+      "per_sensor_acc_baseline": 0.8232,
+      "per_sensor_acc_candidate": 0.8218,
+      "delta_per_sensor_acc": -0.0014,
+      "exact_match_baseline": 0.5312,
+      "exact_match_candidate": 0.525,
+      "delta_exact_match": -0.0062,
+      "per_x": {
+        "2": {
+          "n_trials": 200,
+          "n_fixed": 2,
+          "n_broken": 1,
+          "net_fix": 1,
+          "per_sensor_acc_baseline": 0.8275,
+          "per_sensor_acc_candidate": 0.83,
+          "exact_match_baseline": 0.68,
+          "exact_match_candidate": 0.685
+        },
+        "3": {
+          "n_trials": 200,
+          "n_fixed": 8,
+          "n_broken": 4,
+          "net_fix": 4,
+          "per_sensor_acc_baseline": 0.8267,
+          "per_sensor_acc_candidate": 0.8333,
+          "exact_match_baseline": 0.565,
+          "exact_match_candidate": 0.58
+        },
+        "4": {
+          "n_trials": 200,
+          "n_fixed": 3,
+          "n_broken": 9,
+          "net_fix": -6,
+          "per_sensor_acc_baseline": 0.82,
+          "per_sensor_acc_candidate": 0.8125,
+          "exact_match_baseline": 0.475,
+          "exact_match_candidate": 0.455
+        },
+        "5": {
+          "n_trials": 200,
+          "n_fixed": 4,
+          "n_broken": 7,
+          "net_fix": -3,
+          "per_sensor_acc_baseline": 0.822,
+          "per_sensor_acc_candidate": 0.819,
+          "exact_match_baseline": 0.405,
+          "exact_match_candidate": 0.38
+        }
+      },
+      "top_fixed_confusion_pairs": [
+        {
+          "true": "r_upper_arm",
+          "predicted_by_baseline": "r_shoulder",
+          "count": 3
+        },
+        {
+          "true": "l_forearm",
+          "predicted_by_baseline": "l_upper_arm",
+          "count": 3
+        },
+        {
+          "true": "l_upper_arm",
+          "predicted_by_baseline": "l_shoulder",
+          "count": 3
+        },
+        {
+          "true": "neck",
+          "predicted_by_baseline": "spine_upper",
+          "count": 3
+        },
+        {
+          "true": "l_hand",
+          "predicted_by_baseline": "l_forearm",
+          "count": 1
+        },
+        {
+          "true": "l_thigh",
+          "predicted_by_baseline": "r_foot",
+          "count": 1
+        },
+        {
+          "true": "r_hip",
+          "predicted_by_baseline": "l_hip",
+          "count": 1
+        },
+        {
+          "true": "neck",
+          "predicted_by_baseline": "r_collar",
+          "count": 1
+        },
+        {
+          "true": "l_shoulder",
+          "predicted_by_baseline": "l_upper_arm",
+          "count": 1
+        }
+      ],
+      "top_broken_confusion_pairs": [
+        {
+          "true": "r_hand",
+          "newly_predicted": "r_forearm",
+          "count": 6
+        },
+        {
+          "true": "l_upper_arm",
+          "newly_predicted": "l_forearm",
+          "count": 5
+        },
+        {
+          "true": "spine_lower",
+          "newly_predicted": "spine_upper",
+          "count": 2
+        },
+        {
+          "true": "r_shin",
+          "newly_predicted": "l_foot",
+          "count": 2
+        },
+        {
+          "true": "spine_lower",
+          "newly_predicted": "spine_mid",
+          "count": 1
+        },
+        {
+          "true": "l_shoulder",
+          "newly_predicted": "l_upper_arm",
+          "count": 1
+        },
+        {
+          "true": "r_hip",
+          "newly_predicted": "r_thigh",
+          "count": 1
+        },
+        {
+          "true": "l_forearm",
+          "newly_predicted": "l_upper_arm",
+          "count": 1
+        },
+        {
+          "true": "r_hip",
+          "newly_predicted": "l_thigh",
+          "count": 1
+        },
+        {
+          "true": "r_shoulder",
+          "newly_predicted": "r_upper_arm",
+          "count": 1
+        }
+      ],
+      "stratified": {
+        "easy": {
+          "n_fixed": 1,
+          "n_broken": 4,
+          "net_fix": -3,
+          "per_sensor_acc_baseline": 0.9886,
+          "per_sensor_acc_candidate": 0.9855,
+          "n_sensor_obs": 966
+        },
+        "hard": {
+          "n_fixed": 16,
+          "n_broken": 17,
+          "net_fix": -1,
+          "per_sensor_acc_baseline": 0.7361,
+          "per_sensor_acc_candidate": 0.7356,
+          "n_sensor_obs": 1834
+        }
+      }
+    },
+    "pure_jointlim_soft": {
+      "n_trials_paired": 800,
+      "n_sensors_paired": 2800,
+      "n_fixed": 4,
+      "n_broken": 1,
+      "net_fix": 3,
+      "per_sensor_acc_baseline": 0.8232,
+      "per_sensor_acc_candidate": 0.8243,
+      "delta_per_sensor_acc": 0.0011,
+      "exact_match_baseline": 0.5312,
+      "exact_match_candidate": 0.5312,
+      "delta_exact_match": 0.0,
+      "per_x": {
+        "2": {
+          "n_trials": 200,
+          "n_fixed": 0,
+          "n_broken": 1,
+          "net_fix": -1,
+          "per_sensor_acc_baseline": 0.8275,
+          "per_sensor_acc_candidate": 0.825,
+          "exact_match_baseline": 0.68,
+          "exact_match_candidate": 0.675
+        },
+        "3": {
+          "n_trials": 200,
+          "n_fixed": 2,
+          "n_broken": 0,
+          "net_fix": 2,
+          "per_sensor_acc_baseline": 0.8267,
+          "per_sensor_acc_candidate": 0.83,
+          "exact_match_baseline": 0.565,
+          "exact_match_candidate": 0.57
+        },
+        "4": {
+          "n_trials": 200,
+          "n_fixed": 2,
+          "n_broken": 0,
+          "net_fix": 2,
+          "per_sensor_acc_baseline": 0.82,
+          "per_sensor_acc_candidate": 0.8225,
+          "exact_match_baseline": 0.475,
+          "exact_match_candidate": 0.475
+        },
+        "5": {
+          "n_trials": 200,
+          "n_fixed": 0,
+          "n_broken": 0,
+          "net_fix": 0,
+          "per_sensor_acc_baseline": 0.822,
+          "per_sensor_acc_candidate": 0.822,
+          "exact_match_baseline": 0.405,
+          "exact_match_candidate": 0.405
+        }
+      },
+      "top_fixed_confusion_pairs": [
+        {
+          "true": "r_upper_arm",
+          "predicted_by_baseline": "r_shoulder",
+          "count": 3
+        },
+        {
+          "true": "neck",
+          "predicted_by_baseline": "r_collar",
+          "count": 1
+        }
+      ],
+      "top_broken_confusion_pairs": [
+        {
+          "true": "r_hand",
+          "newly_predicted": "l_collar",
+          "count": 1
+        }
+      ],
+      "stratified": {
+        "easy": {
+          "n_fixed": 0,
+          "n_broken": 0,
+          "net_fix": 0,
+          "per_sensor_acc_baseline": 0.9886,
+          "per_sensor_acc_candidate": 0.9886,
+          "n_sensor_obs": 966
+        },
+        "hard": {
+          "n_fixed": 4,
+          "n_broken": 1,
+          "net_fix": 3,
+          "per_sensor_acc_baseline": 0.7361,
+          "per_sensor_acc_candidate": 0.7377,
+          "n_sensor_obs": 1834
+        }
+      }
+    },
+    "default_blend": {
+      "n_trials_paired": 800,
+      "n_sensors_paired": 2800,
+      "n_fixed": 22,
+      "n_broken": 11,
+      "net_fix": 11,
+      "per_sensor_acc_baseline": 0.8232,
+      "per_sensor_acc_candidate": 0.8271,
+      "delta_per_sensor_acc": 0.0039,
+      "exact_match_baseline": 0.5312,
+      "exact_match_candidate": 0.5363,
+      "delta_exact_match": 0.0051,
+      "per_x": {
+        "2": {
+          "n_trials": 200,
+          "n_fixed": 2,
+          "n_broken": 0,
+          "net_fix": 2,
+          "per_sensor_acc_baseline": 0.8275,
+          "per_sensor_acc_candidate": 0.8325,
+          "exact_match_baseline": 0.68,
+          "exact_match_candidate": 0.69
+        },
+        "3": {
+          "n_trials": 200,
+          "n_fixed": 4,
+          "n_broken": 1,
+          "net_fix": 3,
+          "per_sensor_acc_baseline": 0.8267,
+          "per_sensor_acc_candidate": 0.8317,
+          "exact_match_baseline": 0.565,
+          "exact_match_candidate": 0.57
+        },
+        "4": {
+          "n_trials": 200,
+          "n_fixed": 9,
+          "n_broken": 7,
+          "net_fix": 2,
+          "per_sensor_acc_baseline": 0.82,
+          "per_sensor_acc_candidate": 0.8225,
+          "exact_match_baseline": 0.475,
+          "exact_match_candidate": 0.47
+        },
+        "5": {
+          "n_trials": 200,
+          "n_fixed": 7,
+          "n_broken": 3,
+          "net_fix": 4,
+          "per_sensor_acc_baseline": 0.822,
+          "per_sensor_acc_candidate": 0.826,
+          "exact_match_baseline": 0.405,
+          "exact_match_candidate": 0.415
+        }
+      },
+      "top_fixed_confusion_pairs": [
+        {
+          "true": "r_hip",
+          "predicted_by_baseline": "l_hip",
+          "count": 4
+        },
+        {
+          "true": "neck",
+          "predicted_by_baseline": "spine_upper",
+          "count": 3
+        },
+        {
+          "true": "l_forearm",
+          "predicted_by_baseline": "l_upper_arm",
+          "count": 3
+        },
+        {
+          "true": "r_upper_arm",
+          "predicted_by_baseline": "r_shoulder",
+          "count": 3
+        },
+        {
+          "true": "r_shin",
+          "predicted_by_baseline": "l_foot",
+          "count": 2
+        },
+        {
+          "true": "l_thigh",
+          "predicted_by_baseline": "r_thigh",
+          "count": 2
+        },
+        {
+          "true": "r_hand",
+          "predicted_by_baseline": "r_upper_arm",
+          "count": 1
+        },
+        {
+          "true": "head",
+          "predicted_by_baseline": "spine_upper",
+          "count": 1
+        },
+        {
+          "true": "spine_upper",
+          "predicted_by_baseline": "r_collar",
+          "count": 1
+        },
+        {
+          "true": "head",
+          "predicted_by_baseline": "r_collar",
+          "count": 1
+        }
+      ],
+      "top_broken_confusion_pairs": [
+        {
+          "true": "l_upper_arm",
+          "newly_predicted": "l_forearm",
+          "count": 3
+        },
+        {
+          "true": "r_shin",
+          "newly_predicted": "l_foot",
+          "count": 2
+        },
+        {
+          "true": "l_hand",
+          "newly_predicted": "l_hip",
+          "count": 1
+        },
+        {
+          "true": "l_forearm",
+          "newly_predicted": "l_shoulder",
+          "count": 1
+        },
+        {
+          "true": "spine_lower",
+          "newly_predicted": "spine_mid",
+          "count": 1
+        },
+        {
+          "true": "l_thigh",
+          "newly_predicted": "r_foot",
+          "count": 1
+        },
+        {
+          "true": "r_hand",
+          "newly_predicted": "r_forearm",
+          "count": 1
+        },
+        {
+          "true": "r_hip",
+          "newly_predicted": "l_thigh",
+          "count": 1
+        }
+      ],
+      "stratified": {
+        "easy": {
+          "n_fixed": 1,
+          "n_broken": 1,
+          "net_fix": 0,
+          "per_sensor_acc_baseline": 0.9886,
+          "per_sensor_acc_candidate": 0.9886,
+          "n_sensor_obs": 966
+        },
+        "hard": {
+          "n_fixed": 21,
+          "n_broken": 10,
+          "net_fix": 11,
+          "per_sensor_acc_baseline": 0.7361,
+          "per_sensor_acc_candidate": 0.7421,
+          "n_sensor_obs": 1834
+        }
+      }
+    }
+  },
+  "baseline_top1": 0.8286637931034483,
+  "easy_hard_threshold": 0.95,
+  "region_difficulty": {
+    "pelvis": "easy",
+    "l_hip": "hard",
+    "r_hip": "hard",
+    "spine_lower": "easy",
+    "l_thigh": "hard",
+    "r_thigh": "hard",
+    "spine_mid": "easy",
+    "l_shin": "easy",
+    "r_shin": "hard",
+    "spine_upper": "easy",
+    "l_foot": "hard",
+    "r_foot": "hard",
+    "neck": "hard",
+    "l_collar": "easy",
+    "r_collar": "easy",
+    "head": "hard",
+    "l_shoulder": "easy",
+    "r_shoulder": "hard",
+    "l_upper_arm": "hard",
+    "r_upper_arm": "hard",
+    "l_forearm": "hard",
+    "r_forearm": "hard",
+    "l_hand": "hard",
+    "r_hand": "hard"
+  }
+}

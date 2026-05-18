@@ -1,0 +1,132 @@
+2026-05-18 00:43:17,422  INFO      Device: cuda
+2026-05-18 00:43:17,608  INFO      base_filters=128 (from --base_filters override)
+2026-05-18 00:43:17,629  INFO      Loaded checkpoint  arch=resnet  in_channels=9  base_filters=128  fold=0
+2026-05-18 00:43:17,629  INFO      No --test_subject provided; using checkpoint test_subj=1
+2026-05-18 00:43:18,496  INFO      Filtered to subject 1  →  2784 windows
+2026-05-18 00:43:18,508  INFO      Running inference on 2784 windows …
+2026-05-18 00:43:18,672  INFO      
+── Top-k Accuracy ─────────────────────────────────────────
+2026-05-18 00:43:18,672  INFO        Top-1  accuracy : 0.8287  (2307 / 2784)
+2026-05-18 00:43:18,672  INFO        Top-2  accuracy : 0.9422  (2623 / 2784)
+2026-05-18 00:43:18,672  INFO        Top-3  accuracy : 0.9695  (2699 / 2784)
+2026-05-18 00:43:18,672  INFO        Top-5  accuracy : 0.9784  (2724 / 2784)
+2026-05-18 00:43:18,672  INFO        Top-10 accuracy : 0.9871  (2748 / 2784)
+2026-05-18 00:43:18,672  INFO      Per-window (top-1) accuracy: 0.8287
+2026-05-18 00:43:18,672  INFO      Re-ranking disabled (--rerank_windows not set).
+2026-05-18 00:43:18,672  INFO      
+── Physics combo re-ranking ───────────────────────────────
+2026-05-18 00:43:18,672  INFO        Loading calibration & stats …
+2026-05-18 00:43:18,674  INFO        n_sensors=[2, 3, 4, 5]  n_windows=1  n_trials=200  k=3  weights=[0.4, 0.0, 0.4, 0.2]
+2026-05-18 00:43:18,674  INFO        --- soft mode (no hard elimination) ---
+2026-05-18 00:43:29,686  INFO        x=2  exact=0.6900  per_sensor=0.8325  trials=200  elim_mean=0.00
+2026-05-18 00:44:15,083  INFO        x=3  exact=0.5700  per_sensor=0.8317  trials=200  elim_mean=0.00
+2026-05-18 00:46:53,884  INFO        x=4  exact=0.4700  per_sensor=0.8225  trials=200  elim_mean=0.00
+2026-05-18 00:55:35,845  INFO        x=5  exact=0.4150  per_sensor=0.8260  trials=200  elim_mean=0.00
+2026-05-18 00:55:35,851  INFO      Majority-vote accuracy: 0.0571  (locked 2.5% of windows)
+2026-05-18 00:55:36,521  INFO      Confusion matrix saved → results/penalty_sweep/physics_diagnostic_20260517_235338/default_blend/confusion_matrix.png
+2026-05-18 00:55:36,521  INFO      
+── Symmetry Confusion (top 5) ─────────────────────────────
+2026-05-18 00:55:36,521  INFO        l_hip          ↔ r_hip           avg_rate=0.224
+2026-05-18 00:55:36,521  INFO        l_thigh        ↔ r_thigh         avg_rate=0.065
+2026-05-18 00:55:36,521  INFO        l_hand         ↔ r_hand          avg_rate=0.004
+2026-05-18 00:55:36,521  INFO        l_shin         ↔ r_shin          avg_rate=0.000
+2026-05-18 00:55:36,521  INFO        l_foot         ↔ r_foot          avg_rate=0.000
+2026-05-18 00:55:36,521  INFO      
+── Left-Right Confusion Breakdown ─────────────────────────
+2026-05-18 00:55:36,521  INFO        Total errors      : 477 / 2784  (17.1%)
+2026-05-18 00:55:36,521  INFO        L↔R mirror errors : 68 / 477 errors  (14.3% of all errors)
+2026-05-18 00:55:36,521  INFO        Per symmetric pair (sorted by error count):
+2026-05-18 00:55:36,521  INFO          l_hip ↔ r_hip                         total=52
+2026-05-18 00:55:36,521  INFO            l_hip→r_hip                              22
+2026-05-18 00:55:36,521  INFO            r_hip→l_hip                              30
+2026-05-18 00:55:36,521  INFO          l_thigh ↔ r_thigh                     total=15
+2026-05-18 00:55:36,521  INFO            l_thigh→r_thigh                          10
+2026-05-18 00:55:36,521  INFO            r_thigh→l_thigh                          5
+2026-05-18 00:55:36,521  INFO          l_hand ↔ r_hand                       total=1
+2026-05-18 00:55:36,521  INFO            l_hand→r_hand                            1
+2026-05-18 00:55:36,521  INFO            r_hand→l_hand                            0
+2026-05-18 00:55:36,521  INFO      
+── Spatial Error (mis-classified samples) ─────────────────
+2026-05-18 00:55:36,522  INFO        N wrong      : 477 / 2784  (17.1%)
+2026-05-18 00:55:36,522  INFO        Mean error   : 0.2784 m
+2026-05-18 00:55:36,522  INFO        Std error    : 0.1470 m
+2026-05-18 00:55:36,525  INFO      
+── Classification Report ───────────────────────────────────
+              precision    recall  f1-score   support
+
+      pelvis       1.00      1.00      1.00       116
+       l_hip       0.76      0.81      0.78       116
+       r_hip       0.78      0.66      0.72       116
+ spine_lower       0.98      0.98      0.98       116
+     l_thigh       0.93      0.84      0.89       116
+     r_thigh       0.78      0.90      0.83       116
+   spine_mid       0.99      0.99      0.99       116
+      l_shin       0.81      0.97      0.88       116
+      r_shin       0.94      0.92      0.93       116
+ spine_upper       0.86      0.98      0.92       116
+      l_foot       0.95      0.88      0.91       116
+      r_foot       0.88      0.81      0.84       116
+        neck       0.96      0.83      0.89       116
+    l_collar       0.99      0.98      0.99       116
+    r_collar       0.95      1.00      0.97       116
+        head       0.96      0.89      0.92       116
+  l_shoulder       0.80      0.98      0.88       116
+  r_shoulder       0.80      0.94      0.87       116
+ l_upper_arm       0.57      0.68      0.62       116
+ r_upper_arm       0.54      0.84      0.66       116
+   l_forearm       0.62      0.60      0.61       116
+   r_forearm       0.53      0.41      0.47       116
+      l_hand       0.91      0.51      0.65       116
+      r_hand       0.85      0.46      0.60       116
+
+    accuracy                           0.83      2784
+   macro avg       0.84      0.83      0.83      2784
+weighted avg       0.84      0.83      0.83      2784
+
+2026-05-18 00:55:36,525  INFO      
+── Top-10 non-L/R confused pairs ──────────────────────────
+2026-05-18 00:55:36,525  INFO         1. r_forearm        → r_upper_arm       count=55  (47.4% of true class)
+2026-05-18 00:55:36,525  INFO         2. r_hand           → r_forearm         count=39  (33.6% of true class)
+2026-05-18 00:55:36,525  INFO         3. l_forearm        → l_upper_arm       count=35  (30.2% of true class)
+2026-05-18 00:55:36,525  INFO         4. l_hand           → l_forearm         count=31  (26.7% of true class)
+2026-05-18 00:55:36,525  INFO         5. l_hand           → l_upper_arm       count=24  (20.7% of true class)
+2026-05-18 00:55:36,525  INFO         6. l_upper_arm      → l_shoulder        count=22  (19.0% of true class)
+2026-05-18 00:55:36,525  INFO         7. r_hand           → r_upper_arm       count=22  (19.0% of true class)
+2026-05-18 00:55:36,525  INFO         8. r_foot           → l_shin            count=20  (17.2% of true class)
+2026-05-18 00:55:36,525  INFO         9. r_upper_arm      → r_shoulder        count=14  (12.1% of true class)
+2026-05-18 00:55:36,525  INFO        10. l_upper_arm      → l_forearm         count=11  (9.5% of true class)
+2026-05-18 00:55:36,526  INFO      
+── Per-class top-k accuracy ────────────────────────────────
+2026-05-18 00:55:36,526  INFO        Class              top 1 top 2 top 3 top 5 top10
+2026-05-18 00:55:36,526  INFO        ------------------------------------------------
+2026-05-18 00:55:36,526  INFO        pelvis             1.000 1.000 1.000 1.000 1.000  (n=116)
+2026-05-18 00:55:36,526  INFO        l_hip              0.810 0.983 0.983 1.000 1.000  (n=116)
+2026-05-18 00:55:36,526  INFO        r_hip              0.664 0.991 1.000 1.000 1.000  (n=116)
+2026-05-18 00:55:36,526  INFO        spine_lower        0.983 1.000 1.000 1.000 1.000  (n=116)
+2026-05-18 00:55:36,526  INFO        l_thigh            0.845 0.974 0.991 1.000 1.000  (n=116)
+2026-05-18 00:55:36,526  INFO        r_thigh            0.897 0.957 0.966 0.983 1.000  (n=116)
+2026-05-18 00:55:36,526  INFO        spine_mid          0.991 1.000 1.000 1.000 1.000  (n=116)
+2026-05-18 00:55:36,526  INFO        l_shin             0.974 1.000 1.000 1.000 1.000  (n=116)
+2026-05-18 00:55:36,526  INFO        r_shin             0.922 0.991 1.000 1.000 1.000  (n=116)
+2026-05-18 00:55:36,526  INFO        spine_upper        0.983 0.991 0.991 0.991 1.000  (n=116)
+2026-05-18 00:55:36,526  INFO        l_foot             0.879 0.905 0.983 1.000 1.000  (n=116)
+2026-05-18 00:55:36,526  INFO        r_foot             0.810 0.905 0.974 1.000 1.000  (n=116)
+2026-05-18 00:55:36,526  INFO        neck               0.828 0.922 0.983 0.991 1.000  (n=116)
+2026-05-18 00:55:36,526  INFO        l_collar           0.983 0.991 1.000 1.000 1.000  (n=116)
+2026-05-18 00:55:36,526  INFO        r_collar           1.000 1.000 1.000 1.000 1.000  (n=116)
+2026-05-18 00:55:36,526  INFO        head               0.888 0.966 0.983 0.983 1.000  (n=116)
+2026-05-18 00:55:36,526  INFO        l_shoulder         0.983 0.991 0.991 1.000 1.000  (n=116)
+2026-05-18 00:55:36,526  INFO        r_shoulder         0.940 1.000 1.000 1.000 1.000  (n=116)
+2026-05-18 00:55:36,527  INFO        l_upper_arm        0.681 0.897 0.966 0.966 0.983  (n=116)
+2026-05-18 00:55:36,527  INFO        r_upper_arm        0.845 0.974 0.983 1.000 1.000  (n=116)
+2026-05-18 00:55:36,527  INFO        l_forearm          0.603 0.897 0.974 0.991 0.991  (n=116)
+2026-05-18 00:55:36,527  INFO        r_forearm          0.414 0.741 0.828 0.853 0.879  (n=116)
+2026-05-18 00:55:36,527  INFO        l_hand             0.509 0.767 0.802 0.810 0.888  (n=116)
+2026-05-18 00:55:36,527  INFO        r_hand             0.457 0.767 0.871 0.914 0.948  (n=116)
+2026-05-18 00:55:36,528  INFO      
+✓ Evaluation complete.  Summary saved → results/penalty_sweep/physics_diagnostic_20260517_235338/default_blend/eval_summary.json
+[load_calibration] Loaded calibration/region_sensor_rotmats.npy shape=(24, 3, 3)
+[load_stats] Loaded joint_angle_limits
+[load_stats] Loaded accel_distributions
+[load_stats] Loaded gravity_distributions
+[load_stats] Loaded per_region_orientation_limits
