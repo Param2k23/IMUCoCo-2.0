@@ -1,0 +1,21 @@
+[2026-05-14 02:50:45] === Physics + Top-k Sweep ===
+  checkpoint:    checkpoints/penalty_sweep/best_final/best_model_fold0.pt
+  data:          data/processed/penalty_sweep_dataset.npz
+  out_base:      results/penalty_sweep/physics_topk_sweep_20260514_025010
+  n_sensors:     2,3,4,5
+  n_trials:      500  (final: 3000)
+  skip_stages:   none
+
+[2026-05-14 02:50:45] === STAGE A: coarse sweep ===
+[2026-05-14 02:50:45] 180 configurations to run (skipping any with existing eval_summary.json)
+[2026-05-14 02:50:45] [  1/180] RUNNING  w-classifier_only__k3__soft
+[2026-05-14 03:19:56]              done   (1750.3s)
+[2026-05-14 03:19:56] [  2/180] RUNNING  w-classifier_only__k3__hard0p1
+[2026-05-14 04:18:18]              done   (3501.9s)
+[2026-05-14 04:18:18] [  3/180] RUNNING  w-classifier_only__k3__hard0p2
+[2026-05-14 05:17:48]              done   (3570.3s)
+[2026-05-14 05:17:48] [  4/180] RUNNING  w-classifier_only__k3__hard0p3
+[2026-05-14 06:16:03]              done   (3495.5s)
+[2026-05-14 06:16:03] [  5/180] RUNNING  w-classifier_only__k3__hard0p5
+[2026-05-14 07:14:39]              done   (3515.1s)
+[2026-05-14 07:14:39] [  6/180] RUNNING  w-classifier_only__k5__soft
