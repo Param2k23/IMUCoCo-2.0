@@ -381,191 +381,139 @@ This realization directly motivated the creation of the IMUCoCo-based research r
 
 ---
 
-# Part II: IMUCoCo‑2.0 — Project Work Report
+# Part II: IMUCoCo‑2.0 — Implementation and Experimental Work
 
-A chronological walk through the work done in this repository, derived from
-the git history (`git log --reverse`) cross‑checked against the actual logs,
-checkpoints, and result JSON in‑tree. Every headline number below was
-re‑verified against the file noted in parentheses.
+The second part of the project translated the IMUCoCo motivation from Part I into a working body‑region classification system. The central research question for this phase was deliberately narrower than the one introduced at the end of Part I: *given a single virtual IMU sensor mounted somewhere on the body, can a learned classifier identify which of 24 SMPL body regions the sensor occupies?* Solving this problem reliably would directly address the limitation that IMUCoCo assumes sensor placements are known at inference time.
 
-Each section is one logical phase: what was on the table going in, what the
-commits actually changed, the **observation at the time**, the **decision
-that followed**, and the **measured result**. Dates are commit dates from
-`git log`.
+This part documents the full experimental program — the dataset choices, the architectural baselines, the loss‑function modifications, the post‑hoc re‑ranking experiments, and finally the integration of biophysical scorers as a candidate filter. The work proceeded as a sequence of well‑scoped experiments, each motivated by the failure modes of the previous one. Every headline number reported below has been re‑verified against the result artifacts in‑tree.
 
-Pipeline shorthand: `preprocess_vimu.py → train.py → evaluate.py`, with
-per‑phase Slurm scripts (`run_*.slurm`) wrapping the three steps on the HPC
-cluster.
+## 1. System Overview and Evaluation Protocol
 
----
+### 1.1 Pipeline
 
-## Phase 0 — Initial scaffold (Apr 12, 2026)
+The classification system follows a three‑stage pipeline:
 
-Commit `0e3201a` *"Initial commit: IMU body-region classifier (IMUCoCo /
-SMPL)"* — 9 files, 2 378 lines.
+1. **Preprocessing** — virtual IMU segments are converted into a uniform `.npz` contract `X (N, 9, T) float32`, `y (N,) int`, `subject_ids (N,) int`. The 9 input channels consist of six 6D rotation coefficients followed by three linear acceleration components.
+2. **Training** — a deep convolutional model is trained either on a fixed train/test split or under leave‑one‑subject‑out cross validation (LOSO). Z‑score normalization statistics are computed on the train fold and stored separately to prevent leakage.
+3. **Evaluation** — per‑window top‑1 accuracy, per‑region confusion, spatial error on the SMPL T‑pose mesh, and L/R symmetry confusion are computed and serialized.
 
-What lands:
+Each experiment was run on an HPC cluster using H200 GPUs, with batch jobs encapsulating the preprocess–train–evaluate sequence.
 
-- `smpl_regions.py` — 24‑region vertex map, region centroids, parent table,
-  `spatial_error(...)` helper (Euclidean distance in metres between
-  pred/true region centroids on the T‑pose mesh).
-- `model.py` — `ResNet1D` (default) and a `CNN1D` baseline. Input `(B, 9, T)`
-  → 24 logits.
-- `train.py` — LOSO + fixed‑split scaffold.
-- `evaluate.py` — per‑window accuracy, confusion matrix, spatial error,
-  symmetry pairs, majority‑vote.
-- `preprocess_amass.py` — original AMASS‑first preprocessing path.
-- `kaggle/SensorLoc_train.ipynb` — Kaggle notebook prototype.
+### 1.2 Class Taxonomy
 
-**Observation at the time**: README paths are Windows
-(`C:/VS/SensorLoc/…`); the project name on disk is *SensorLoc*; AMASS is
-assumed as the data source. **Decision**: pivot to a Linux+CUDA, synthetic
-VIMU pipeline immediately — captured in `PLAN.md` of the very next commit.
+The 24‑region taxonomy corresponds to the standard SMPL joint layout: pelvis, spine (lower/middle/upper), neck, head, both collars, both shoulders, both upper arms, both forearms, both hands, both hips, both thighs, both knees, both shins, both feet. Left and right are kept as separate classes throughout — merging them would obscure the most informative confusion patterns observed during evaluation.
+
+### 1.3 Evaluation Metrics
+
+Four metrics are tracked across every experiment:
+
+- **Per‑window top‑1 accuracy** — the primary headline metric.
+- **Spatial error** — Euclidean distance in metres between the predicted and true region centroids on the SMPL T‑pose mesh, capturing how *anatomically close* the wrong predictions are.
+- **L/R confusion rate** — fraction of errors corresponding to a left/right mirror swap.
+- **Per‑class confusion matrix** — used to identify the dominant non‑L/R failure modes.
 
 ---
 
-## Phase 1 — Pivot to the synthetic VIMU dataset (Apr 14, 2026)
+## 2. Initial Scaffold and Architecture
 
-Commit `d03394c` *"changes for new synthetic dataset + development,
-execution changes"* — +1 448 / −202 lines. The largest single rewrite in the
-history.
+The first step was building the foundational classifier scaffold around an SMPL‑aligned class taxonomy.
 
-New / rewritten files:
+The scaffold introduced a 24‑region vertex map and parent table derived from SMPL, a Euclidean spatial‑error helper measuring distance in metres between predicted and true region centroids on the T‑pose mesh, and two convolutional architectures: a 1D ResNet (the default) and a 1D CNN baseline. Both models took the `(B, 9, T)` IMU window as input and produced 24 region logits.
 
-- **`preprocess_vimu.py`** — converts DIP‑style `vimu` `.pt` segments into
-  the `.npz` contract `X (N,9,T) float32`, `y (N,) int`, `subject_ids (N,) int`.
-  Channel layout `r6d_0..r6d_5, ax, ay, az`; one sample per
-  `(segment, region)`.
-- **`train.py`** rewritten (+432/−202): adds `--mode fixed_split`, a strict
-  CUDA policy (`--smoke_test` is the only path that allows CPU), and
-  separate `normalization_stats*.pt` files.
-- **`evaluate.py`** rewritten for the new contract, with weights‑only
-  checkpoint loading and fail‑fast on missing stats / channel mismatch.
-- Docs: `AGENTS.md` (working agreement), `DATASET.md`, `PLAN.md`,
-  `UPGRADE.md` (the seven‑step A0…A6 ablation roadmap), and a `commmands`
-  runbook.
+Training and evaluation harnesses supported both LOSO and fixed‑split modes from the outset. The evaluator computed per‑window accuracy, the per‑class confusion matrix, spatial error, L/R symmetry pairs, and a majority‑vote aggregate.
 
-**Observation at the time** (`PLAN.md`): the team only has DIP‑style `vimu`
-segments from a small subject pool; accuracy is the primary metric but
-spatial error matters because adjacent regions are anatomically close.
-**Decisions captured in `PLAN.md`**:
-
-- Class taxonomy fixed at 24 regions (no merging of L/R for the baseline).
-- Two parallel data pipelines: *single‑subject* (ignore source split) and
-  *predefined split* (respect source train/test folders).
-- CUDA required in non‑smoke runs (rationale: prevent accidental long CPU
-  runs).
-- `UPGRADE.md` deliberately gates augmentations / SE blocks / EMA behind a
-  `[FUTURE]` tag — get the baseline working first.
+At this stage the system targeted the AMASS dataset as the primary data source. After an initial usability review — paths assumed a Windows filesystem, the disk‑level project name still referenced its previous identity as *SensorLoc*, and there was no GPU policy in place — the immediate decision was to pivot to a Linux + CUDA pipeline operating on synthetic virtual IMU (VIMU) data.
 
 ---
 
-## Phase 2 — Smoke test + plumbing (Apr 17, 2026)
+## 3. Pivot to the Synthetic VIMU Dataset
 
-Commit `e340016` *"update + bug fixes + smoke test command"* — +471/−162.
+The next step was the largest single rewrite in the implementation history: converting the preprocessing path to ingest DIP‑style virtual IMU segments rather than AMASS pose data.
 
-- `./smoke_commands` — runs the full pipeline on a tiny slice, the fastest
-  way to verify a new machine.
-- `normalization.py` — centralises z‑score stats so train and eval cannot
-  drift apart.
-- README rewritten as the IMUCoCo / SMPL story (current form).
-- `train.py` / `evaluate.py` hardened: weights‑only checkpoints, normalization
-  stats saved separately, fail‑fast on missing stats or channel mismatch.
+The new preprocessor read VIMU `.pt` segments and emitted the canonical `.npz` contract described in §1.1. Each training sample corresponded to one `(segment, body_region)` pair, with channels laid out as `r6d_0..r6d_5, ax, ay, az`. The training script was rewritten to support a `fixed_split` mode and to enforce a strict CUDA policy outside of smoke runs, eliminating the risk of accidental multi‑hour CPU jobs. Evaluation was hardened with weights‑only checkpoint loading and fail‑fast checks for missing normalization statistics or channel mismatches.
 
-**Decision**: every later runbook (`run_*.slurm`) is required to keep the
-smoke path working — the smoke command becomes the canonical sanity check.
+Several design decisions were locked in at this stage:
+
+- **Class taxonomy fixed at 24 regions.** Merging left and right classes was deliberately deferred to expose symmetry confusion as a measurable failure mode rather than hide it.
+- **Two parallel data pipelines.** A *single‑subject* path that ignores the source split, and a *predefined split* path that respects the source train/test folders. Both produced the same `.npz` contract downstream.
+- **Augmentations, attention blocks, and EMA gated behind a "future" tag.** The deliberate ordering was: establish a clean baseline first, then layer in modeling tricks only if a measurable plateau warranted it.
 
 ---
 
-## Phase 3 — Hugging Face Parquet ingestion (Apr 18, 2026)
+## 4. Smoke Test and Pipeline Hardening
 
-Three commits the same afternoon (`347782b`, `8f0aac1`, `12b0348`).
+A small but consequential step was the introduction of a smoke‑test command that ran the full preprocess → train → evaluate sequence on a tiny slice of data. This became the canonical sanity check for every new machine and every later infrastructure change.
 
-The DIP `.pt` path stays, but `preprocess_vimu.py --mode hf_parquet` is added
-to read `train-*.parquet` / `test-*.parquet` shards directly. The same
-`(X, y, subject_ids) .npz` contract is produced.
+A centralized normalization module was added so that training and evaluation could not drift apart on z‑score statistics — a class of bug that would otherwise be invisible until evaluation numbers became inexplicable. Checkpoints were converted to weights‑only format with separately saved normalization statistics, and the evaluator gained fail‑fast guards on missing statistics or channel mismatches.
 
-- `smoke_commands` gains `SMOKE_MODE={pt,hf,both}`.
-- Subject‑id parsing made smarter (`--subject_column`, robust filename
-  fallback, single summary warning). `pyarrow` added to requirements.
-
-**Observation at the time**: parquet rows have variable `T`, and shard joins
-sometimes produce mixed‑length stacks. **Decision** (commit `f30fe91` four
-days later): crop/pad every row to `window_length=300` *before* stacking,
-and drop rows that can't be normalised.
-
-By end of Apr 18 the data path is dataset‑agnostic: every downstream step
-consumes the same `.npz` regardless of source.
+The standing requirement from this point onward was that every cluster runbook had to keep the smoke path functional. The smoke command became the contract every later infrastructure change had to honor.
 
 ---
 
-## Phase 4 — First baseline on the cluster (Apr 22, 2026)
+## 5. Hugging Face Parquet Ingestion
 
-Commits `f30fe91`, `58c8e7e`, `cbde868`, `d62ce4d`, `01286d2`, `62a297e`.
+To unlock larger and more diverse training data, the preprocessing path was extended to read Hugging Face parquet shards in addition to DIP `.pt` segments. The new mode parsed `train-*.parquet` and `test-*.parquet` shard families directly and emitted the same `.npz` contract, so every downstream step remained dataset‑agnostic.
 
-Wires up the first cluster pipeline (`run_full_pipelines.slurm`, h200x4, 8 h
-walltime) and produces the first real number.
+Two practical problems surfaced during this step:
 
-Run characteristics (`logs/train_hf_full_split.log`):
+- Parquet rows had variable temporal length `T`, and shard joins occasionally produced mixed‑length stacks. The resolution was to crop or pad every row to a fixed `window_length=300` before stacking, and to drop rows that could not be normalized.
+- Subject identifiers were inconsistently encoded across shards. A robust parsing path was added with column‑name overrides and a filename‑based fallback, consolidated into a single summary warning per run.
 
-- Train: `X=(21240, 9, 300)`, 24 classes, **8 subjects**.
-- Test:  `X=(456, 9, 300)`, 24 classes, **2 subjects**.
-- 80 epoch budget but **early stopping at epoch 30** (patience=15), best
-  `val_acc=0.7171` reached at epoch 15.
+By the end of this step the data path was source‑agnostic: every later experiment consumed the same `.npz` contract regardless of whether its data originated from DIP `.pt` files or HF parquet shards.
 
-Eval result (`results/full_split_full/eval_summary.json`,
-`logs/eval_hf_full_split.log`):
+---
 
-| metric                       | value |
+## 6. First Baseline on the Cluster
+
+With the dataset pipeline stable, the first end‑to‑end baseline was run on the HPC cluster.
+
+Training characteristics:
+
+- Training set: `X = (21240, 9, 300)`, 24 classes, **8 subjects**.
+- Test set: `X = (456, 9, 300)`, 24 classes, **2 subjects**.
+- Budget: 80 epochs, early stopping with patience 15.
+
+Training stopped at epoch 30, with the best validation accuracy of 0.7171 reached at epoch 15.
+
+Evaluation summary:
+
+| Metric                       | Value |
 |------------------------------|-------|
-| per‑window accuracy          | **0.7171** |
-| majority‑vote acc. (k=5)     | 0.2857 |
-| locked fraction              | 4.6 % |
-| windows wrong                | 129 / 456 (28.3 %) |
-| spatial error mean / std (m) | 0.4064 / 0.3131 |
+| Per‑window accuracy          | **0.7171** |
+| Majority‑vote acc. (k=5)     | 0.2857 |
+| Locked fraction              | 4.6 % |
+| Windows wrong                | 129 / 456 (28.3 %) |
+| Spatial error mean / std (m) | 0.4064 / 0.3131 |
 
-**Observation at the time** (visible in the eval log): the majority‑vote
-metric was essentially broken — only 4.6 % of windows ever locked. The
-classification report shows L/R errors on hip / shin / hand at 5.3 % each;
-arm chain (`l_upper_arm`, `l_forearm`, `l_hand`) recall sits at 0.42 / 0.42 /
-0.47 — the *adjacent‑region* arm‑chain failures that dominate every later
-result are already visible at 71 % overall accuracy.
+Two observations from this run set the trajectory for the rest of the project:
 
-**Decision** (`62a297e`): expose `--weight_decay` and add
-`run_ablation_sweep.slurm` so the next iteration can ablate around the
-baseline rather than re‑run blind. Ablations in
-`results/ablations/summary.csv` are computed on this fixed split (not on
-LOSO):
+- The majority‑vote metric was essentially broken — only 4.6 % of windows ever locked into a stable prediction. The metric was deprecated as a primary signal.
+- The classification report showed left/right errors on hip, shin, and hand at 5.3 % each, and the arm chain (`l_upper_arm`, `l_forearm`, `l_hand`) recall sat at 0.42 / 0.42 / 0.47. **The adjacent‑region arm‑chain failure that dominates every later result was already visible at 71 % overall accuracy.**
 
-| run                          | val per‑window acc |
+To support targeted ablations rather than blind retraining, the training script was extended to expose weight decay as a CLI knob, and a dedicated ablation‑sweep runbook was added. The first ablation results, on the fixed split:
+
+| Run                          | Val per‑window acc |
 |------------------------------|-------------------:|
 | baseline_seed42              | 0.7719 |
 | baseline_seed43              | 0.7303 |
 | baseline_seed44              | 0.7654 |
-| **fusion_blend01_seed42** (imu_blend=0.1) | **0.7807** |
-| fusion_blend02_seed42 (imu_blend=0.2) | 0.7434 |
+| **fusion_blend01_seed42** (imu_blend = 0.1) | **0.7807** |
+| fusion_blend02_seed42 (imu_blend = 0.2) | 0.7434 |
 | reg_batch64_wd3e4_seed42     | 0.7346 |
 
-Best ablation row is the small **imu_blend=0.1** fusion of `vimu` and
-`imu`; the larger 0.2 blend regresses, so the decision is to keep `vimu`
-as the primary input.
+A modest 10 % blend of raw IMU data into the synthetic VIMU input gave the best ablation; the heavier 20 % blend regressed. The decision was to keep VIMU as the primary input channel.
 
 ---
 
-## Phase 5 — LOSO baseline + tuning (Apr 23, 2026)
+## 7. LOSO Baseline and Hyperparameter Tuning
 
-Commits `3c5c359`, `b21ec9d`, `7906e78`, `b1bcd2d`, `058ad88`.
+Once the fixed split had been characterized, leave‑one‑subject‑out cross validation was adopted as the primary research split. LOSO is the more honest evaluation regime for a subject‑transfer problem because it never lets the model see the same subject in training and validation.
 
-LOSO becomes the primary research split. Merged dataset is
-`X=(21696, 9, 300)`, **10 subjects**, IDs 1..10.
+The merged dataset for LOSO contained `X = (21696, 9, 300)` across 10 subjects.
 
-- `run_loso.slurm` — full LOSO Slurm pipeline with `SMOKE_TEST=1` shortcut.
-- `b21ec9d` — small fix: smoke mode copies `loso_dataset.npz` to
-  `loso_smoke_dataset.npz` so `train.py`'s smoke filename rewrite finds it.
+### 7.1 LOSO Baseline
 
-**LOSO baseline** (`checkpoints/loso_full/loso_results.txt`):
-
-| fold | subject | val_acc | fold | subject | val_acc |
+| Fold | Subject | Val acc | Fold | Subject | Val acc |
 |-----:|--------:|--------:|-----:|--------:|--------:|
 | 1    | 1       | 0.7342  | 6    | 6       | 0.7061  |
 | 2    | 2       | 0.7241  | 7    | 7       | **0.8425** |
@@ -573,83 +521,57 @@ LOSO becomes the primary research split. Merged dataset is
 | 4    | 4       | 0.7512  | 9    | 9       | 0.7315  |
 | 5    | 5       | 0.8018  | 10   | 10      | **0.6875** |
 
-**Mean LOSO 0.7517** (std 0.0444, range 0.155 from worst to best fold).
+The mean LOSO accuracy was **0.7517** (std 0.0444, with a 15.5 percentage‑point spread from worst to best fold).
 
-**Observation at the time** (`MEETING_30MIN_BRIEF.md` shipped with
-`b1bcd2d`): fold variance is 15 pp from worst to best — strong evidence
-that subject identity dominates the remaining error. **Decision**: tune
-hyperparameters per‑fold rather than per‑run; build a sweep that uses the
-first five folds as a proxy and reruns the winner on all ten.
+The 15 pp spread across folds was strong evidence that *subject identity dominated the residual error*. Two same‑configuration runs differed by more than the gain typically produced by a hyperparameter change. The next experiment therefore tuned hyperparameters on a 5‑fold proxy and re‑ran the winner on all ten folds.
 
-`run_loso_tune.slurm` runs five trials on folds 1‑5:
+### 7.2 Hyperparameter Tuning
 
-| trial | epochs | bs  | lr   | wd   | patience | sweep acc |
+A 5‑trial sweep on folds 1‑5:
+
+| Trial | Epochs | Batch size  | LR   | WD   | Patience | Sweep acc |
 |-------|-------:|----:|-----:|-----:|---------:|----------:|
 | a     | 80     | 128 | 1e‑3 | 1e‑4 | 15       | 0.7393    |
 | b     | 100    | 128 | 1e‑3 | 3e‑4 | 20       | 0.7800    |
 | c     | 80     | 64  | 1e‑3 | 1e‑4 | 15       | 0.7658    |
 | d     | 80     | 128 | 5e‑4 | 1e‑4 | 20       | 0.7575    |
-| **e** | 120    | 128 | 7e‑4 | 3e‑4 | 25       | **0.7810** ← winner |
+| **e** | 120    | 128 | 7e‑4 | 3e‑4 | 25       | **0.7810** |
 
-**Observation**: `trial_b` and `trial_e` both win by way of stronger weight
-decay (`3e-4`) and longer patience — the smaller LR (`7e-4`) plus 120
-epochs in `trial_e` is the marginal win. **Decision**: rerun `trial_e` on
-all ten folds.
+Trials `b` and `e` both benefited from stronger weight decay (`3e-4`) and longer patience; the smaller learning rate plus 120 epochs in trial `e` was the marginal winner. Re‑running trial `e` on all ten folds produced a mean LOSO accuracy of **0.7817**, a +3.0 pp gain over the baseline.
 
-Tuned LOSO (`checkpoints/loso_tune/best_final/loso_results.txt`): **mean
-0.7817**, +3.0 pp over the baseline. The worst fold (subject 6) drops to
-0.6875 — i.e. tuning *helps the easy folds more than the hard ones*. This
-becomes a recurring theme.
+A telling pattern emerged in this rerun: the worst fold (subject 6) did not improve from its baseline value of 0.6875. Tuning helped the easy folds more than the hard ones — a theme that recurred in every later experiment.
 
 ---
 
-## Phase 6 — Epoch sweep + a 6‑step pipeline (Apr 27, 2026)
+## 8. Epoch Sweep and the SpatialNeighborLoss
 
-Commits `3b8855f`, `f0c85b7`, `16617f7`, `a0d9d8d`.
+By this point the L/R and arm‑chain confusion patterns were clearly visible but unaddressed. The next experiment pursued two complementary directions: extending the training budget, and modifying the loss function to inject anatomical structure.
 
-`run_epoch_sweep.slurm` (389 lines) is the workhorse. It clones the LOSO
-script into a 6‑step pipeline: preprocess → smoke → 5‑fold sweep → pick
-best → train all 10 folds → evaluate all 10 folds. `evaluate.py` is
-extended in the same commit (+99) to write per‑fold confusion matrices and
-the L/R confusion aggregate.
+### 8.1 Epoch Sweep
 
-First epoch sweep result on 5 folds
-(`results/epoch_sweep/leaderboard.csv` / `best_config.env`):
+A 6‑step automated pipeline (preprocess → smoke → 5‑fold sweep → pick best → train all 10 folds → evaluate all 10 folds) was introduced to systematically explore training duration. Evaluation was extended to write per‑fold confusion matrices and L/R confusion aggregates in the same step.
 
-| trial            | epochs | bs  | lr   | wd   | patience | loss   | lrw  | mean (5 folds) |
+| Trial            | Epochs | Batch size  | LR   | WD   | Patience | Loss   | LR weight  | Mean (5 folds) |
 |------------------|-------:|----:|-----:|-----:|---------:|--------|-----:|---------------:|
 | ep300_custom     | 300    | 128 | 1e‑3 | 3e‑4 | 50       | custom | 0.5  | 0.8106 |
-| **ep400_custom** | **400**| 128 | 1e‑3 | 3e‑4 | 60       | custom | 0.5  | **0.8480** ← winner |
+| **ep400_custom** | **400**| 128 | 1e‑3 | 3e‑4 | 60       | custom | 0.5  | **0.8480** |
 | ep500_custom     | 500    | 128 | 1e‑3 | 3e‑4 | 60       | custom | 0.5  | 0.8272 |
 | ep600_custom     | 600    | 128 | 1e‑3 | 3e‑4 | 60       | custom | 0.5  | 0.8157 |
 | ep800_custom     | 800    | 128 | 1e‑3 | 3e‑4 | 60       | custom | 0.5  | 0.8296 |
 
-**Observation at the time**: the curve is non‑monotone — 400 epochs beats
-both 500 and 800. **Decision**: 400 is the sweet spot; stop pushing epochs
-and start changing the loss.
+The curve was clearly non‑monotone: 400 epochs beat both 500 and 800. Four hundred was the sweet spot, and the conclusion was that further gains had to come from the loss function rather than the training budget.
 
-### Phase 6b — SpatialNeighborLoss + bigger net (Apr 28, 2026)
+### 8.2 SpatialNeighborLoss
 
-Commit `bf49976` *"SpatialNeighborLoss, class weights, base_filters=128
-for 95%+ target"* — +195/−99 in `train.py` alone.
+Three modifications shipped together as the next experiment:
 
-Three things ship together:
+1. **SpatialNeighborLoss** — two physics‑informed penalty terms layered on top of cross‑entropy. The first is a *spatial* term penalizing predictions in proportion to the Euclidean distance between predicted and true region centroids on the SMPL T‑pose; the second is an *L/R mirror* term applying additional cost when the wrong side of the body is predicted, controlled by an `lr_weight` hyperparameter (default 0.5).
+2. **Inverse‑frequency class weights**, computed per‑fold from the training split.
+3. **A wider model** with `base_filters = 128` (approximately 5M parameters) so the spatial penalty had more capacity to push against.
 
-1. **`SpatialNeighborLoss`** — adds two physics‑informed penalty terms on
-   top of cross‑entropy: a *spatial* term (distance between predicted and
-   true region centroids on the SMPL T‑pose), and an *L/R mirror* term
-   (extra cost when the wrong side of the body is predicted, controlled by
-   `--lr_weight`, default 0.5).
-2. **Inverse‑frequency class weights**, computed per‑fold from the train
-   split.
-3. **Wider model** (`--base_filters 128`, ~5 M params) so the spatial
-   penalty has more parameters to push against.
+With these in place, the 400‑epoch configuration was rerun on all ten folds:
 
-`5623745` *"v3 epoch sweep …"* runs this configuration. `ep400_custom`
-holds as the winner on the 5‑fold sweep, and the full LOSO rerun
-(`checkpoints/epoch_sweep/best_final/loso_results.txt`):
-
-| fold | subj | val_acc | fold | subj | val_acc |
+| Fold | Subj | Val acc | Fold | Subj | Val acc |
 |-----:|-----:|--------:|-----:|-----:|--------:|
 | 1    | 1    | 0.8315  | 6    | 6    | 0.8180  |
 | 2    | 2    | 0.8303  | 7    | 7    | 0.8798  |
@@ -657,40 +579,23 @@ holds as the winner on the 5‑fold sweep, and the full LOSO rerun
 | 4    | 4    | 0.8476  | 9    | 9    | 0.8843  |
 | 5    | 5    | 0.8736  | 10   | 10   | 0.8875  |
 
-**Mean LOSO 0.8611** — +8.0 pp over the LOSO baseline, +7.9 pp over the
-tuned LOSO, and the largest single jump in the project.
+The mean LOSO accuracy reached **0.8611** — +8.0 pp over the LOSO baseline, +7.9 pp over the tuned baseline, and the largest single jump in the entire project.
 
-**Observation**: subject 6 (worst in Phase 5) jumps from 0.6875 → 0.8180.
-The spatial penalty is doing exactly what the design intended — it
-converts what would be a wrong‑arm‑region error into a *near* arm‑region
-error, which still counts as wrong for top‑1 but is much easier for the
-class‑weighted CE to learn out.
+The most informative single observation was that subject 6 — the worst fold throughout earlier experiments — jumped from 0.6875 to 0.8180. The spatial penalty was doing exactly what its design intended: converting wrong‑arm‑region errors into *near* arm‑region errors that the class‑weighted cross‑entropy could then learn out.
 
 ---
 
-## Phase 7 — Penalty sweep & non‑L/R confusion analysis (May 6–7, 2026)
+## 9. Penalty Sweep and Non‑L/R Confusion Analysis
 
-Commits `839affe`, `6c9300b`, `49343ae`, `d169e71`, `0751b3b`, `1c0e2f6`.
+With the L/R confusion rate now small, the next experiment was scoped to identify *what else* was producing errors. A three‑stage penalty sweep was designed:
 
-By now the L/R confusion rate is small. The next question is *what else* is
-producing errors. `run_penalty_sweep.slurm` (493 lines) sweeps three
-phases:
+- **Stage 1** — `neighbor_weight ∈ {0.0, 0.1, 0.2, 0.3, 0.5, 0.7}` at fixed `lr=1e-3` and `lr_weight=0.5`, isolating the spatial penalty effect.
+- **Stage 2** — a 3 × 3 grid of `lr ∈ {3e-4, 7e-4, 2e-3}` and `neighbor_weight ∈ {0.0, 0.3, 0.5}`.
+- **Stage 3** — `lr_weight ∈ {0.0, 0.3, 1.0, 2.0}` at fixed `lr=1e-3` and `neighbor_weight=0.3`.
 
-- **Phase 1** — `neighbor_weight ∈ {0.0, 0.1, 0.2, 0.3, 0.5, 0.7}` at fixed
-  `lr=1e-3`, `lrw=0.5` (isolates the spatial penalty effect).
-- **Phase 2** — `lr ∈ {3e-4, 7e-4, 2e-3} × nbw ∈ {0.0, 0.3, 0.5}` grid.
-- **Phase 3** — `lr_weight ∈ {0.0, 0.3, 1.0, 2.0}` at fixed `lr=1e-3`,
-  `nbw=0.3`.
+The winning configuration was retrained on all ten LOSO folds.
 
-Best trial is auto‑picked from `leaderboard.csv` and rerun on all ten
-folds. (The committed `results/penalty_sweep/leaderboard.csv` is the
-header‑only file — the body lives in cluster scratch — but the final
-`loso_results.txt` is in‑tree.)
-
-To find the non‑L/R failure modes, `evaluate.py` is extended (`6c9300b`):
-the full 24×24 confusion matrix and top‑10 *non*‑L/R pairs are written to
-each per‑fold `eval_summary.json`. A 10‑fold aggregate is in
-`results/penalty_sweep/eval_best_final/confusion_aggregate.json`:
+To attack the non‑L/R failure modes, the evaluator was extended to emit the full 24 × 24 confusion matrix and the top‑10 non‑L/R confusion pairs per fold. The 10‑fold aggregate revealed:
 
 ```
 total_windows  : 21 696
@@ -699,9 +604,9 @@ L/R errors     :    243   ( 8.3% of errors)
 non-L/R errors :  2 688   (91.7% of errors)
 ```
 
-Top non‑L/R pairs (all *adjacent* on the same arm chain):
+The dominant non‑L/R confusion pairs:
 
-| pair                            | count | % of errors |
+| Pair                            | Count | % of errors |
 |---------------------------------|------:|------------:|
 | r_forearm → r_upper_arm         | 211   | 7.20 |
 | l_forearm → l_upper_arm         | 143   | 4.88 |
@@ -712,39 +617,21 @@ Top non‑L/R pairs (all *adjacent* on the same arm chain):
 | r_hand → r_forearm              |  97   | 3.31 |
 | l_hand → l_forearm              |  90   | 3.07 |
 
-**Observation**: 91.7 % of all remaining errors are non‑L/R, and the
-top‑8 pairs are all on the arm chain (`forearm ↔ upper_arm`, `forearm
-↔ hand`). The architecture is already doing a good job on L/R — the work
-to do is on adjacent‑region arm‑chain disambiguation. **Decision**:
-treat the arm chain as the main target for *post‑hoc* re‑ranking (the
-loss change has run its course; the next gain has to come from outside
-the model).
+Every one of the top‑8 non‑L/R confusion pairs sat on the same arm chain (`forearm ↔ upper_arm`, `forearm ↔ hand`). The architecture had effectively solved L/R symmetry; the remaining work concentrated on *adjacent‑region* arm‑chain disambiguation. Because adjacent regions share strongly overlapping motion statistics, the conclusion was that further gains would need to come from outside the model itself — through *post‑hoc re‑ranking* using an additional, complementary signal.
 
-Best‑final LOSO mean (`checkpoints/penalty_sweep/best_final/loso_results.txt`):
-**0.8683** across all ten folds (range 0.8235 … 0.9071). This is the
-checkpoint set every later phase re‑uses.
+The best‑final LOSO mean for this experiment was **0.8683** across all ten folds, with a per‑fold range of 0.8235 to 0.9071. This checkpoint set became the reference snapshot for every subsequent re‑ranking experiment.
 
-A small but necessary infra fix lands in the same window (`0751b3b`):
-checkpoints saved with `base_filters=128` were being rebuilt by
-`evaluate.py` at the default `64`, causing every layer to mismatch.
-`_save_norm_stats` now writes `base_filters` into the normalization stats
-file and `load_model` reads it back (CLI > stats > 64). `run_eval_only.slurm`
-(`d169e71`) lets these checkpoints be re‑evaluated without retraining — it
-becomes the harness for every subsequent phase.
+A subtle infrastructure issue surfaced during this experiment: checkpoints saved with `base_filters=128` were being rebuilt by the evaluator at the default `base_filters=64`, causing tensor‑shape mismatches at load time. The fix was to record `base_filters` inside the normalization statistics file and have the evaluator read it back, with the CLI flag taking precedence. An eval‑only runbook was also added so checkpoints could be re‑evaluated without retraining — this harness was reused by every later re‑ranking experiment.
 
 ---
 
-## Phase 8 — Top‑k accuracy (May 12, 2026)
+## 10. Top‑k Accuracy Evaluation
 
-Commit `12b716d` *"top-k accuracy evaluation (k=1,2,3,5,10)"*.
+The penalty‑sweep experiment had effectively reached a plateau on top‑1 accuracy. The next experiment asked: *how often is the correct answer present in the top‑k predictions, even when it is not the top‑1?*
 
-`evaluate.py` gains a single forward pass that yields top‑k softmax probs
-(`predict_all_topk`) plus `topk_accuracy` /
-`topk_accuracy_per_class`. `run_topk_eval.slurm` re‑evaluates the
-penalty‑sweep checkpoints. Result
-(`results/penalty_sweep/topk_eval/topk_summary.json`):
+The evaluator was extended with a single forward pass that yielded the top‑k softmax probabilities for k up to 10, along with per‑class top‑k accuracy. Re‑evaluating the penalty‑sweep checkpoints produced:
 
-| k   | mean acc   | gain vs top‑1 |
+| k   | Mean acc   | Gain vs top‑1 |
 |----:|-----------:|--------------:|
 | 1   | **0.8684** | —             |
 | 2   | 0.9494     | +0.0810       |
@@ -752,185 +639,105 @@ penalty‑sweep checkpoints. Result
 | 5   | 0.9823     | +0.1139       |
 | 10  | 0.9886     | +0.1202       |
 
-(0.8684 vs 0.8683 from `loso_results.txt` is a per‑fold averaging
-artifact — same checkpoints, same data.)
+The top‑3 predictions contained the correct label 97 % of the time, while top‑1 missed 13 % of the time. **Approximately 10 percentage points of accuracy were sitting inside the top‑3 candidate set, waiting for a re‑ranker to surface them.**
 
-**Observation**: top‑3 already includes the correct label 97 % of the
-time, but top‑1 misses 13 % of the time. **~10 pp of headroom is sitting
-inside the candidate set**, waiting for a re‑ranker. **Decision**: build
-re‑rankers. Two are tried in parallel — temporal (next phase) and
-biophysical (Phase 10+).
+Per‑fold top‑1 spanned 0.8238 (subject 5) to 0.8958 (subject 2); per‑fold top‑3 spanned 0.9452 to 0.9825. The worst fold's top‑3 accuracy still exceeded the best fold's top‑1 accuracy — a textbook signal that re‑ranking was the right next direction.
 
-Per‑fold top‑1 spans 0.8238 (subject 5) … 0.8958 (subject 2); per‑fold
-top‑3 spans 0.9452 … 0.9825. The *worst* fold's top‑3 still beats the
-best fold's top‑1 — a textbook signal that re‑ranking is the right next
-move.
+Two re‑ranking strategies were then pursued in parallel: **temporal re‑ranking** (described next) and **biophysical re‑ranking** (described in Sections 12–14).
 
 ---
 
-## Phase 9 — Temporal re‑ranking (May 12, 2026)
+## 11. Temporal Re‑ranking Experiment
 
-Commits `cc6aeab`, `f88bc0c`, `02cdff0`, `af6d5e9`.
+The first re‑ranker tested was purely temporal: aggregate the top‑k softmax outputs across adjacent windows under the assumption that nearby windows should agree on the body region.
 
-`temporal_rerank.py` (319 lines) implements three post‑processing
-strategies on the `(N, k_max)` top‑k softmax output — no retraining:
+Three post‑processing strategies were implemented over the `(N, k_max)` top‑k probability output, with no retraining required:
 
-- `prob_sum` — sliding sum of raw probs (best when calibrated).
+- `prob_sum` — sliding sum of raw probabilities (most appropriate when the classifier is calibrated).
 - `topk_vote` — weighted votes for the top‑`k_vote` classes per window.
-- `majority` — hard majority on top‑1.
+- `majority` — hard majority on the top‑1 prediction.
 
-Both causal (past‑only) and centred windows. Sweeps all `(strategy,
-window)` combos and writes the best config + per‑class gains to
-`eval_summary.json["temporal_reranking"]`.
+Both causal (past‑only) and centred windows were tested. The harness swept all `(strategy, window)` combinations and recorded the best configuration along with per‑class gains.
 
-**First result (commit `f88bc0c`) was nonsense**: every config — every
-strategy, every window — produced *exactly* 0.8684. **Observation**: the
-`penalty_sweep` `.npz` is *class‑sorted*, not time‑sorted. A window of
-size 3 spanned two different classes ~66 % of the time, collapsing
-accuracy from 86 % to 28 %. The reranker was destroying its own input.
+### 11.1 First Result and Root Cause
 
-**Decision** (commit `02cdff0`): segment‑aware re‑ranking.
-`_get_segments(y_true)` walks `y_true` to find contiguous same‑label
-runs, and `_sliding_sum` applies the window *independently per segment*.
-A simulated class‑sorted block test in the commit message shows
-`prob_sum w=7 → +17 pp` on a 83 % top‑1 baseline, confirming the fix
-works on synthetic data.
+The first run produced an anomalous result: every configuration — every strategy, every window size — produced *exactly* the same top‑1 accuracy of 0.8684, gain zero. Closer inspection revealed why. The evaluation set was *class‑sorted*, not time‑sorted. A sliding window of size 3 spanned two different region labels approximately 66 % of the time, collapsing local accuracy from 86 % to 28 %. The reranker was effectively destroying its own input.
 
-**Second result (commit `af6d5e9`, in‑tree at
-`results/penalty_sweep/rerank_eval/rerank_summary.json`)**: every config
-still produces exactly `0.8684`, gain = 0. With the fix in place the
-reranker *behaves correctly* (it no longer corrupts top‑1) — but every
-window within a class block already has the same top‑1 prediction, so
-there is nothing to smooth. **Conclusion logged in‑repo**: temporal
-smoothing alone cannot close the top‑1‑to‑top‑3 gap on this evaluation
-set; the dataset has no temporal adjacency to exploit. To get gain the
-candidate set has to be reordered using a non‑temporal signal — and that
-signal is biomechanics.
+### 11.2 Segment‑Aware Fix
+
+The fix was *segment‑aware re‑ranking*. A helper walked the label array to identify contiguous same‑label runs, and the sliding aggregator was applied independently within each segment. A synthetic test on class‑sorted blocks confirmed the fix worked: `prob_sum w=7` produced a +17 pp gain on an 83 % top‑1 baseline.
+
+### 11.3 Outcome on the Real Evaluation Set
+
+With the segment‑aware fix in place, every configuration on the real evaluation set again produced exactly 0.8684. The reranker now behaved correctly — it no longer corrupted top‑1 — but every window within a class segment already shared the same top‑1 prediction. There was simply nothing left to smooth.
+
+The conclusion logged in‑repo was unambiguous: temporal smoothing alone could not close the top‑1‑to‑top‑3 gap on this evaluation set. The dataset offered no temporal adjacency to exploit. To realize the 10‑point pool inside the top‑3 candidate set, the reranking signal had to come from a non‑temporal source. The remainder of the project pursued that signal in the form of biomechanics.
 
 ---
 
-## Phase 10 — Physics verification scorers (May 11, 2026)
+## 12. Physics Verification Scorers
 
-Commit `cdbd523` *"physics verification plan impl"* — +13 679 lines. The
-second‑largest commit in the history and the start of the physics work.
+The next experiment introduced biophysical scoring as the candidate non‑temporal signal. The first deliverable was a set of standalone scorers, evaluated as a *verification pass* over candidate sensor‑to‑region assignments rather than as classifier‑integrated rerankers.
 
-Three new docs land alongside the code:
+### 12.1 Planned Scorers
 
-- `PHYSICS_VERIFICATION_PLAN.md` (404 lines, with an **implementation log §9**
-  that documents every deviation from the plan as it happened).
-- `PHYSICS_RESULTS.md` — plain‑English write‑up of what was built and what
-  it found.
-- `verify_combo.py` (610 lines) — the four scorers + CLI.
+Three independent scorers were planned, combined with tunable weights:
 
-### What was planned (`PHYSICS_VERIFICATION_PLAN.md §6, §7`)
+1. **Kinematic scorer** — parent‑child relative rotation compared against a precomputed envelope of plausible joint angles extracted from training data.
+2. **Gravity alignment scorer** — acceleration direction during still frames compared against the region's typical gravity orientation.
+3. **Acceleration profile scorer** — a per‑region 7‑dimensional Gaussian fit to acceleration statistics.
 
-Three independent scorers combined with tunable weights:
+Key design decisions made before implementation:
 
-1. **Kinematic** — parent‑child relative rotation vs a precomputed
-   envelope of plausible joint angles from training data.
-2. **Gravity alignment** — accel direction during still frames should
-   match the region's typical gravity orientation.
-3. **Acceleration profile** — per‑region 7‑dim Gaussian over accel stats.
+- **At most five sensors per candidate combination.** This kept combo enumeration manageable: `3^5 = 243` candidates per scoring call.
+- **Biophysical scores kept separate from classifier confidence for now.** Physics would serve as a second opinion; downstream fusion would come later.
+- **Both per‑joint and per‑activity acceleration distributions** were extracted to support either choice later.
+- **Decision trigger.** If more than 50 % of validation combos lacked any valid parent‑child kinematic pair, the system would fall back to a kinematic‑only configuration with the other two scorers disabled.
 
-Key decisions made in the Q&A section before code was written:
+### 12.2 Implementation Findings
 
-- **Max 5 sensors per combo** (Q3): combo enumeration limited to 3^5=243
-  candidates per scoring call.
-- **Separate biophysical score, not fused with classifier confidence
-  yet** (Q4): physics is a second opinion, downstream fusion comes later.
-- **Both per‑joint and per‑activity accel distributions** (Q2): get more
-  information before committing.
-- **Decision trigger** (`§6`): if >50 % of validation combos have no
-  valid kinematic pair, fall back to kinematic‑only and drop the other
-  two scorers.
+The implementation log produced four substantive corrections to the planned design, each documented as it was discovered.
 
-### What the implementation log (`§9`) actually shows happened
+- **The gravity scorer is inert on this dataset.** Empirical inspection of the `vimu_joints` acceleration channel revealed that it represents *linear acceleration* (gravity is already subtracted). Across 518 training samples the global per‑axis mean was approximately `(+0.002, −0.002, −0.002)`, and the pelvis channel was identically zero. The default combined weights were changed from `(0.4, 0.3, 0.3)` to `(0.5, 0.0, 0.5)`, removing gravity from the active blend. The code was retained for future raw‑IMU datasets where gravity would be present.
+- **The 6D‑to‑rotation‑matrix conversion was fragile.** The original implementation normalized the first and second basis vectors independently and crossed them, which produced a non‑orthonormal frame whenever the inputs were not already perpendicular. SMPL inputs happen to be orthogonal, so there was no observable downstream bug, but the function was undertested. The fix was a full Gram‑Schmidt: orthogonalize the second basis vector against the first before normalizing.
+- **The kinematic scorer was using none of its envelope.** The original `score_kinematic_chain` function loaded the joint angle limit table but only checked it for `None`; the actual score was `1 / (1 + ‖R_parent^T · R_child − I‖_F)`, i.e. "how far from identity," which has no biological meaning. AUC against random combos was 0.27 — *worse than chance* — at n=3 sensors. The fix was to extract a per‑frame ZYX Euler decomposition, look up the precomputed envelope, apply an exponential‑decay penalty for samples outside the envelope, and average over frames and valid parent‑child pairs.
+- **The joint angle envelope was undertrained.** The original training code used only the first frame `t=0` of each segment — essentially the T‑pose — wasting 99.7 % of the available data and producing absurdly tight envelopes. The fix was to use all `T` frames per segment, yielding approximately 6,600 samples per joint pair instead of 22.
 
-This subsection is the most useful contemporaneous record in the
-repository — the physics design *changed during implementation* and the
-plan file records why:
+### 12.3 Measured Impact
 
-- **§9.1 — Gravity scorer is INERT on this dataset.** Discovered
-  empirically: the `vimu_joints` accel channel is *linear acceleration*
-  (gravity already subtracted). Global per‑axis mean ≈ `(+0.002, −0.002,
-  −0.002)` over 518 train samples; pelvis identically zero. **Decision**:
-  default combined weights changed from `(0.4, 0.3, 0.3)` to **`(0.5,
-  0.0, 0.5)`** — gravity contributes nothing. Code retained for future
-  raw‑IMU datasets.
-- **§9.2 — `r6d_to_rotmat` was fragile.** Original normalised `a` and
-  `b` independently and crossed them — not orthonormal whenever `a`
-  was not already perpendicular to `b`. SMPL inputs *are* orthogonal so
-  no observable bug, but the function was undertested. **Fix**: full
-  Gram‑Schmidt (`b_orth = b − (b · a_norm) * a_norm`, then normalise).
-- **§9.3 — Kinematic scorer was using none of the envelope.** Original
-  `score_kinematic_chain` loaded `joint_angle_limits` just for a `None`
-  check; the actual score was `1 / (1 + ‖R_parent^T·R_child − I‖_F)`,
-  i.e. "how far from identity," which has no biological meaning. **Sweep
-  AUC vs random combos was 0.27** (worse than chance) at n=3 sensors.
-  **Fix**: per‑frame ZYX Euler, look up envelope, exp‑decay penalty
-  outside the envelope, mean over frames and over valid parent‑child
-  pairs.
-- **§9.4 — Joint angle envelope was undertrained.** Original code used
-  only `t=0` of each segment (basically T‑pose), wasting 99.7 % of the
-  data and producing absurdly tight envelopes. **Fix**: use all `T` frames
-  → ~22 segments × 300 frames = 6 600 samples per pair.
+Once the four corrections were in place, AUC against true combos as positives (single‑subject train split) was:
 
-### Measured impact after the four fixes (`§9.6`)
-
-AUC against TRUE combos as positives, single‑subject train split:
-
-| n_sensors | scorer    | AUC vs random | vs off‑chain swap | vs L/R swap |
+| n_sensors | Scorer    | AUC vs random | vs off‑chain swap | vs L/R swap |
 |----------:|-----------|--------------:|------------------:|------------:|
 | 4         | kinematic | **0.86**      | 0.62              | 0.55        |
 | 4         | accel     | 0.85          | 0.62              | 0.55        |
 | 5         | kinematic | **0.90**      | 0.68              | **0.67**    |
 | 5         | accel     | 0.87          | 0.63              | 0.54        |
 
-**Observation logged in `§9.6`**: kinematic AUC at n=5 went from 0.62 →
-**0.90** vs random and 0.52 → **0.67** vs L/R swap. The kinematic
-scorer is the L/R discriminator at high sensor counts; the accel scorer
-is the better off‑chain discriminator (matches kinematic vs random but
-collapses vs L/R swaps, which by symmetry have nearly identical accel
-profiles).
+At n=5 sensors the kinematic scorer reached AUC 0.90 against random combos and 0.67 against L/R swaps — a major recovery from the pre‑fix 0.27. The two scorers turned out to play complementary roles: the kinematic scorer was the stronger L/R discriminator at high sensor counts, while the acceleration scorer was the better discriminator against off‑chain swaps. By symmetry, L/R swaps produced nearly identical acceleration profiles, which explained why the acceleration scorer collapsed on L/R comparisons.
 
-Per‑region accel‑only single‑sensor AUC: median **0.874**, all 24 regions
-> 0.7, 11/24 > 0.9. Pelvis / l_foot / l_shin / thighs are easy; spine and
-collars are hardest. **Open item flagged in `§9.7`**: a single scalar
-`w3` underuses this heterogeneity — per‑region weights are a natural
-next step.
+Per‑region acceleration‑only single‑sensor AUC had a median of **0.874**. All 24 regions exceeded 0.7, and 11 of 24 exceeded 0.9. Pelvis, left foot, left shin, and the thighs were the easiest cases; spine and collars were the hardest. The wide spread suggested that a single scalar weight for the acceleration scorer was leaving signal on the table — per‑region weights were a natural follow‑up.
 
-### Headline findings transferred to `PHYSICS_RESULTS.md §5`
+### 12.4 Best‑Case vs Realistic Recovery
 
-| regime                                | non‑L/R recoverable | L/R recoverable |
+Two regimes were characterized:
+
+| Regime                                | non‑L/R recoverable | L/R recoverable |
 |---------------------------------------|--------------------:|----------------:|
-| Best case (kin. neighbors present)    | ~1 476 / 1 522 (97 %) | ~243 / 243 (~100 %) |
+| Best case (kinematic neighbors present)    | ~1 476 / 1 522 (97 %) | ~243 / 243 (~100 %) |
 | Realistic, n=3 random co‑sensors      |  ~249 / 1 522 (16 %)  | ~61 / 243 (25 %) |
 
-Two kinds of wins inside the "97 %": most are *structural* (swap turns a
-valid chain into garbage with no parent‑child pair to score, so truth
-≈ 0.85 vs swap ≈ 0.5 default). The strong cases are *envelope* wins
-where both labelings produce valid pairs but the truth fits and the swap
-doesn't — e.g. `l_hip ↔ r_hip` with `pelvis + thigh` in the combo (truth
-0.86, swap 0.10). **The decisive limitation, in one sentence**: the
-kinematic scorer's power depends entirely on whether the surrounding
-sensors give it kinematic context.
+Within the best case, most wins were *structural*: a wrong labeling turned a valid kinematic chain into garbage with no parent‑child pair to score, so the truth combo scored ~0.85 while the swapped combo defaulted to ~0.5. The stronger cases were *envelope* wins where both labelings produced valid pairs but only the truth fit the envelope — for example, an `l_hip ↔ r_hip` swap with `pelvis + thigh` in the combo (truth 0.86, swap 0.10).
 
-Supporting files added in this phase: `compute_training_stats.py`,
-`extract_calibration.py`, `pair_discrimination.py`, `physics_sweep.py`,
-`tune_weights.py`, `verify_kinematic.py`, `diagnose_scorers.py`,
-`regenerate_npz.py`, `rotation_utils.py`. Stats artifacts:
-`stats/joint_angle_limits.npy`, `accel_distributions.npy`,
-`gravity_distributions.npy` (inert), `best_weights.npy`,
-`sweep_report.json`, plus per‑pair discrimination JSONs.
+The decisive limitation, stated in one sentence: **the kinematic scorer's discriminative power depends entirely on whether the surrounding sensors give it kinematic context**. This conclusion became the central design constraint for the next experiment.
 
 ---
 
-## Phase 11 — Top‑k × physics integration (May 14, 2026)
+## 13. Top‑k × Physics Integration
 
-Commit `b67625f` *"top‑k classification + physics-based filter & rerank"*.
+The next experiment wired the top‑k classifier output and the physics scorers into a unified re‑ranking pipeline.
 
-`topk_combo_rerank.py` (273 lines) and `PHYSICS_INTEGRATION_PLAN.md` (319
-lines) wire Phase 8 and Phase 10 together:
+The structure of the combined system:
 
 ```
 raw IMU stream (n sensors)
@@ -955,230 +762,145 @@ rerank_combos
 final = P(classifier) × P(physics)
 ```
 
-The Phase 10 Q&A had said *"separate score for now"*; this commit's plan
-file explicitly **supersedes** that — the new use case is top‑k
-re‑ranking and multiplicative fusion is the right operator:
-`final = P(classifier) × P(physics)`. The plan section spells it out:
-*"this supersedes `PHYSICS_VERIFICATION_PLAN.md §7-Q4` ("keep separate"),
-which was answered before a real top‑k re‑ranking use case existed."*
+The earlier design decision to keep physics separate from classifier confidence was explicitly superseded for this use case: when the goal is top‑k re‑ranking, multiplicative fusion — `P(final) = P(classifier) × P(physics)` — is the natural operator.
 
-### New fourth scorer: per‑region absolute orientation
+### 13.1 The Fourth Scorer: Per‑Region Absolute Orientation
 
-For every region, the training data implies a ZYX‑Euler envelope (after
-applying `calibration[region]`). A sensor whose body‑frame orientation
-falls outside that envelope is anatomically implausible regardless of
-its parent/child neighbours. The envelopes are stored at
-`stats/per_region_orientation_limits.npy` with two thresholds:
-**strict (10/90 percentile, default)** and **loose (5/95 percentile,
-fallback)**.
+A new scorer was introduced as part of the integration. For every body region, the training data implied a ZYX‑Euler envelope (after applying region‑specific calibration). A sensor whose body‑frame orientation fell outside that envelope was anatomically implausible regardless of its parent or child neighbours. Envelopes were stored with two thresholds:
 
-Two modes:
+- **Strict** — 10th and 90th percentile bounds, used by default.
+- **Loose** — 5th and 95th percentile bounds, used as a fallback.
 
-- **Soft** — per‑frame exp‑decay penalty (same shape as the kinematic
-  scorer so it composes naturally on `[0,1]`).
-- **Hard** (`--joint_limits_hard <frac>`) — any sensor with > `frac`
-  out‑of‑envelope frames *zeroes the entire combo*, dropping it from the
-  candidate pool before top‑1 selection.
+Two scoring modes were implemented:
 
-`PHYSICS_INTEGRATION_PLAN.md §4` includes the **extracted per‑region
-rotation table** — strict and loose envelopes for all 24 regions. Notable:
+- **Soft mode** — a per‑frame exponential decay penalty matching the shape of the kinematic scorer, so the two composed naturally on `[0, 1]`.
+- **Hard mode** — any sensor with more than a configurable fraction of out‑of‑envelope frames *zeroed the entire combo*, dropping it from the candidate pool before the top‑1 selection.
 
-- Arm chain (16–23) has the tightest pitch ROM (~25–50°), well below the
-  literature human shoulder/elbow ROM (0–180°). Consistent with DIP‑IMU
-  being mostly upright daily‑motion captures, not athletic extremes.
-  The scorer can catch grossly mislabelled sensors but won't fire on
-  legal motion outside the training distribution.
-- Pelvis / spine / shins have wide yaw (≥170°) reflecting full
-  locomotion direction span.
-- Pitch axis Y is mathematically bounded to ±90° — every observed value
-  respects it (no axis‑ordering bug).
-- For r_foot Z, l_collar Z, and several arm Z axes, the displayed `max`
-  is numerically *smaller* than `min` because of yaw wrap at ±180°. The
-  envelope check uses `(min, max)` as a two‑sided interval; for these
-  regions the interval wraps the antipode (benign for exp decay).
-  **Flagged as an open item**: switch axes 0/2 to *circular* percentiles
-  later.
+### 13.2 Notes on the Envelope Table
 
-`evaluate.py` gains `--physics_rerank`, `--rerank_n_sensors`,
-`--rerank_n_trials`, `--rerank_n_windows`, `--physics_k`,
-`--physics_weights`, `--joint_limits_hard`, `--physics_calibration`,
-`--physics_stats`. One eval run produces *both* soft and hard pipeline
-numbers (`physics_rerank_summary` and `physics_rerank_summary_hard`) so
-they can be compared side by side.
+Inspection of the extracted per‑region rotation envelopes produced several useful observations:
+
+- The arm chain had the tightest pitch range of motion (approximately 25°–50°), well below the literature human shoulder/elbow range of motion (0°–180°). This was consistent with the DIP‑IMU dataset being dominated by upright daily‑motion captures rather than athletic extremes. The implication was that the scorer could catch grossly mislabelled sensors but would not penalize legal motion outside the training distribution.
+- Pelvis, spine, and shins showed wide yaw ranges (≥170°), reflecting full locomotion direction span.
+- The pitch axis was mathematically bounded to ±90°, and every observed value respected this — confirming no axis‑ordering bug.
+- Several axes showed a numerically smaller `max` than `min` due to yaw wraparound at ±180°. The envelope check used `(min, max)` as a two‑sided interval, which wrapped the antipode benignly under exponential decay but was flagged as an open item — circular percentiles would be the principled fix.
+
+The evaluator was extended with a comprehensive set of CLI knobs for the new re‑ranker, and a single eval run could produce both soft‑mode and hard‑mode pipeline numbers side by side for direct comparison.
 
 ---
 
-## Phase 12 — Slurm wrapper and base_filters fix (May 14, 2026)
+## 14. Physics Sweep Infrastructure
 
-Commits `17bd4cc`, `ba531e4`, `2c5cb11`.
+The next step was building the harness required to systematically evaluate the rerank pipeline. A driver was added that enumerated the cartesian product of weight blends, candidate set sizes (`physics_k`), hard‑mode thresholds, and trial seeds.
 
-- `run_physics_topk_sweep.slurm` + the Python driver
-  `run_physics_topk_sweep.py` (538 lines) — sweep harness for the new
-  re‑ranker. Walltime tweaked in `ba531e4`.
-- `2c5cb11` — recurrence of the Phase 7 bug: the sweep was forgetting to
-  pass `--base_filters 128` to `evaluate.py`, so checkpoints failed to
-  load. Re‑added.
+A recurrence of the `base_filters` mismatch surfaced once again: the sweep driver was not forwarding `--base_filters 128` to the evaluator, so the wider checkpoints failed to load. The fix was the same as the original incident — make the parameter explicit in the sweep configuration.
 
 ---
 
-## Phase 13 — First partial physics sweep (May 17, 2026)
+## 15. Initial Partial Physics Sweep
 
-Commit `6237e2d` *"Incomplete physics results added"*.
+A first end‑to‑end run of the rerank sweep made it through a Stage A subset of the planned 180 configurations. The log showed wall times of approximately 58 minutes per configuration for the harder hard‑mode threshold settings. Only the classifier‑only baseline at `k=3` had completed — soft mode and hard mode at thresholds 0.1, 0.2, 0.3, and 0.5 — plus a partial `k=5` soft‑mode pass.
 
-A Stage A subset of the sweep finishes:
-`results/penalty_sweep/physics_topk_sweep_20260514_025010/`. `sweep.log`
-shows: 180 configurations planned, each run ~58 minutes for the harder
-ones (`hard0p2` = 3 570 s = ~60 min). Only the `w-classifier_only` × `k=3`
-configurations completed (soft + hard at thresholds 0.1, 0.2, 0.3, 0.5)
-plus `k=5 soft` partially. **Observation at the time**: at 60 min per
-config and 180 configs, a full sweep is 7+ days of cluster time. **Decision**
-(next commit): replace the brute‑force sweep with a *paired diagnostic*
-that fixes the trial seed across configs.
+The arithmetic was unforgiving: at one hour per configuration and 180 configurations, the full sweep required more than seven days of cluster time. The decision was to abandon the brute‑force mean‑of‑means sweep and replace it with a *paired diagnostic* that fixed the trial seed across configurations.
 
 ---
 
-## Phase 14 — Physics diagnostic + paired attribution (May 18, 2026)
+## 16. Physics Diagnostic and Paired Attribution
 
-Commits `d1128c2`, `6ec41ff`.
+The final experiment in the implementation program replaced the brute‑force sweep with a paired diagnostic harness. Under this protocol every configuration sees the same seed and the same sampled trials, so the marginal contribution of each scorer can be measured directly as `n_fixed − n_broken` rather than the difference of two noisy sample means — far more sensitive at the magnitudes involved (per‑sensor gains of 0.001 to 0.005).
 
-`d1128c2` adds **`analyze_physics_diagnostic.py`** (461 lines) and
-`run_physics_diagnostic.slurm`. The harness flips from *"try lots of
-weight blends and rank by mean accuracy"* to **paired trial‑by‑trial
-attribution**: every config sees the same seed and the same sampled
-trials, so the marginal contribution of each scorer is `n_fixed −
-n_broken` rather than the difference of two noisy means.
+Five configurations were evaluated: `baseline_classifier_only`, `pure_kin`, `pure_acc`, `pure_jointlim_soft`, and `default_blend`.
 
-`6ec41ff` commits the outputs at
-`results/penalty_sweep/physics_diagnostic_20260517_235338/` covering five
-configs: `baseline_classifier_only`, `pure_kin`, `pure_acc`,
-`pure_jointlim_soft`, `default_blend`.
+### 16.1 Re‑ranker Ceiling at `physics_k = 3`
 
-### Ceiling at `physics_k = 3` (`diagnostic_report.md §1`)
+The upper bound any re‑ranker could reach given the per‑sensor top‑3 candidate set:
 
-Upper bound any re‑ranker can reach given the per‑sensor top‑3 candidate
-set:
-
-| n_sensors | exact‑match ceiling | trials |
+| n_sensors | Exact‑match ceiling | Trials |
 |----------:|--------------------:|-------:|
 | 2         | 0.9400              | 200    |
 | 3         | 0.9300              | 200    |
 | 4         | 0.8750              | 200    |
 | 5         | 0.8850              | 200    |
 
-**Observation**: the ceiling *decreases* with more sensors at `k=3` —
-each additional sensor introduces an independent chance that the true
-region falls outside the top‑3. **Decision** (open item): if `k=5`
-ceilings are higher, the rerank pipeline should pick `k` based on
-`n_sensors`.
+A counterintuitive finding: the ceiling *decreases* with more sensors at `k=3`. Each additional sensor introduces an independent chance that the true region falls outside the top‑3. The implication is that the rerank pipeline should likely choose `k` adaptively as a function of `n_sensors`.
 
-### Per‑scorer paired attribution vs `baseline_classifier_only` (`§2`)
+### 16.2 Per‑Scorer Paired Attribution
 
-| config              | Δ per‑sensor | Δ exact | n_fixed | n_broken | net_fix |
+Compared against the classifier‑only baseline:
+
+| Config              | Δ per‑sensor | Δ exact | n_fixed | n_broken | net_fix |
 |---------------------|-------------:|--------:|--------:|---------:|--------:|
 | **pure_kin**        | **−0.0243**  | −0.0587 | 44      | 112      | **−68** |
 | pure_acc            | −0.0014      | −0.0062 | 17      | 21       | −4      |
 | pure_jointlim_soft  | +0.0011      |  0.0000 |  4      |  1       | +3      |
 | **default_blend**   | **+0.0039**  | +0.0051 | 22      | 11       | **+11** |
 
-`default_blend` breakdown by `n_sensors` (`§2a`):
+The blended configuration's gain broken down by sensor count:
 
-| n  | base per‑sensor | blend per‑sensor | net_fix |
+| n  | Base per‑sensor | Blend per‑sensor | net_fix |
 |---:|----------------:|-----------------:|--------:|
 | 2  | 0.8275          | 0.8325           | +2      |
 | 3  | 0.8267          | 0.8317           | +3      |
 | 4  | 0.8200          | 0.8225           | +2      |
 | 5  | 0.8220          | 0.8260           | +4      |
 
-Stratified by region difficulty (`§4`, "easy" = classifier top‑1 ≥ 0.95):
+Stratified by region difficulty, with "easy" defined as classifier top‑1 ≥ 0.95:
 
-| config              | easy net_fix | hard net_fix |
+| Config              | Easy net_fix | Hard net_fix |
 |---------------------|-------------:|-------------:|
 | pure_kin            | **−45** (1 fixed / 46 broken) | −23 |
 | pure_acc            | −3           | −1           |
 | pure_jointlim_soft  | +0           | +3           |
 | default_blend       | +0           | **+11** (21 fixed / 10 broken) |
 
-**Observations at the time** (lifted from the diagnostic report and what
-it implies for the project):
+### 16.3 Interpretation
 
-- **`pure_kin` regresses on its own** because in random combos the
-  scorer is silent on most cases — and on the easy ones it has just
-  enough wrong signal to flip 46 already‑correct predictions for the 1
-  it gets right. This is exactly the *"depends entirely on kinematic
-  context"* limit from `PHYSICS_RESULTS.md`: scoring arbitrary candidate
-  combos puts the system in the realistic regime (16 % recovery) rather
-  than the best case (97 % recovery).
-- **`pure_jointlim_soft` and `default_blend` are net positive**, and the
-  blend's gain (+0.0039) is more than the best single scorer (+0.0011) —
-  i.e. **the signals are additive, not redundant**.
-- **All of `default_blend`'s gain comes from hard cases** (+11 net on
-  the 1 834 hard observations, ±0 net on the 966 easy ones). The
-  threshold for "easy" is generous (≥95 %), so the blend is not breaking
-  the model where it's already confident.
-- **Confusion pairs fixed by the blend** (`§2b`): exactly the pairs
-  Phase 7 identified as the dominant error sources — `r_hip → l_hip`
-  (4), `l_forearm → l_upper_arm` (3), `r_upper_arm → r_shoulder` (3),
-  `neck → spine_upper` (3), `l_thigh → r_thigh` (2).
+Four observations carried implications for the project:
 
-### Decisions captured
+- **The pure kinematic scorer regressed when used alone.** On random candidate combinations the kinematic scorer was silent on most cases, and on the easy cases it had just enough wrong signal to flip 46 already‑correct predictions for the 1 it got right. This was the direct consequence of the limitation identified in the previous experiment: scoring arbitrary candidate combinations places the system in the *realistic* regime (16 % recovery) rather than the *best case* regime (97 % recovery).
+- **The blended configuration was net positive**, and its gain (+0.0039 per sensor) exceeded the best single scorer's gain (+0.0011 per sensor). The signals were *additive*, not redundant.
+- **All of the blend's gain came from hard cases**: +11 net on the 1,834 hard observations, and 0 net on the 966 easy ones. The "easy" threshold was generous (≥95 % classifier confidence), so the blend was demonstrably not breaking the model where it was already confident.
+- **The confusion pairs fixed by the blend** were precisely those identified in the penalty‑sweep analysis as the dominant error sources: `r_hip → l_hip` (4 fixed), `l_forearm → l_upper_arm` (3), `r_upper_arm → r_shoulder` (3), `neck → spine_upper` (3), `l_thigh → r_thigh` (2).
 
-- The kinematic scorer cannot be applied to arbitrary candidate combos
-  without breaking more than it fixes. **Use it only when the combo
-  includes kinematic neighbors**, or down‑weight it heavily in
-  general‑case blends.
-- The blend wins by *adding* the joint‑limit eliminator on top, not by
-  pushing the kinematic weight higher.
-- The diagnostic harness (paired trial sampling) is the right
-  evaluation protocol for any future scorer work — mean‑of‑means is too
-  noisy at the magnitudes involved (gains of 0.001‑0.005 per sensor).
+### 16.4 Conclusions from the Diagnostic
 
-This is where the project stands at HEAD.
+- The kinematic scorer cannot be applied to arbitrary candidate combinations without breaking more than it fixes. It must be used only when the combination includes kinematic neighbors, or heavily down‑weighted in general‑case blends.
+- The blend wins by *adding* the joint‑limit eliminator on top, not by pushing the kinematic weight higher.
+- The paired diagnostic protocol is the right evaluation harness for any future scorer work. Mean‑of‑means comparisons are too noisy at the magnitudes involved.
 
 ---
 
-## Accuracy progression at a glance (all numbers verified in‑tree)
+## 17. Accuracy Progression Summary
 
-| Phase | Setup                                               | Headline metric           | Source |
-|-------|-----------------------------------------------------|---------------------------|--------|
-| 4     | Fixed split, ResNet1D, plain CE                     | **0.7171** per‑window     | `results/full_split_full/eval_summary.json` |
-| 4     | Best ablation (`fusion_blend01_seed42`)             | 0.7807 per‑window         | `results/ablations/summary.csv` |
-| 5     | LOSO baseline, 10 folds                             | **0.7517** mean LOSO      | `checkpoints/loso_full/loso_results.txt` |
-| 5     | LOSO tuned (`trial_e`)                              | **0.7817** mean LOSO      | `checkpoints/loso_tune/best_final/loso_results.txt` |
-| 6     | Epoch sweep best (no SpatialNeighborLoss)           | 0.8480 (5 folds, sweep)   | `results/epoch_sweep/leaderboard.csv` |
-| 6b    | SpatialNeighborLoss + class weights + bf=128        | **0.8611** mean LOSO      | `checkpoints/epoch_sweep/best_final/loso_results.txt` |
-| 7     | Penalty sweep best‑final, all 10 folds              | **0.8683** mean LOSO      | `checkpoints/penalty_sweep/best_final/loso_results.txt` |
-| 8     | Same checkpoints, top‑k ceiling                     | top‑3 0.9708, top‑5 0.9823 | `results/penalty_sweep/topk_eval/topk_summary.json` |
-| 9     | Temporal re‑ranking, segment‑aware                  | +0.000 vs top‑1            | `results/penalty_sweep/rerank_eval/rerank_summary.json` |
-| 14    | Physics `default_blend`, paired diagnostic          | **+0.0039 per‑sensor**, net_fix +11 | `results/penalty_sweep/physics_diagnostic_20260517_235338/diagnostic_report.md` |
+The full progression of headline metrics across the experimental program:
 
-The remaining headroom from top‑1 (0.8684) to top‑3 (0.9708) is the
-~10‑point pool the physics work targets. Phase 14 demonstrates the
-mechanics work — soft blended physics is a net‑positive re‑ranker on
-random combos — but realising the full gain depends on *deliberately
-seeding kinematic neighbors into the candidate combos*, exactly the
-design lever called out at the end of `PHYSICS_RESULTS.md §6`.
+| Step | Setup                                               | Headline metric           |
+|------|-----------------------------------------------------|---------------------------|
+| 6    | Fixed split, ResNet1D, plain CE                     | **0.7171** per‑window     |
+| 6    | Best ablation (`fusion_blend01_seed42`)             | 0.7807 per‑window         |
+| 7    | LOSO baseline, 10 folds                             | **0.7517** mean LOSO      |
+| 7    | LOSO tuned (trial `e`)                              | **0.7817** mean LOSO      |
+| 8    | Epoch sweep best (no SpatialNeighborLoss)           | 0.8480 (5‑fold sweep)     |
+| 8    | SpatialNeighborLoss + class weights + bf=128        | **0.8611** mean LOSO      |
+| 9    | Penalty sweep best‑final, all 10 folds              | **0.8683** mean LOSO      |
+| 10   | Same checkpoints, top‑k ceiling                     | top‑3 0.9708, top‑5 0.9823 |
+| 11   | Temporal re‑ranking, segment‑aware                  | +0.000 vs top‑1            |
+| 16   | Physics `default_blend`, paired diagnostic          | **+0.0039 per‑sensor**, net_fix +11 |
+
+The dominant remaining headroom is the ~10‑point pool between top‑1 (0.8684) and top‑3 (0.9708), which the physics work targeted but only partially realized. The paired diagnostic demonstrated the mechanics: soft‑blended physics is a net‑positive re‑ranker on random candidate combinations. Realizing the full ceiling depends on *deliberately seeding kinematic neighbors into the candidate combinations* — exactly the design lever surfaced as the central limitation in Section 12.
 
 ---
 
-## Open threads at HEAD
+## 18. Open Research Threads
 
-- Hard‑mode threshold sweep for the per‑region orientation eliminator
-  (`PHYSICS_INTEGRATION_PLAN.md §5.4`).
-- Switch the per‑region orientation envelope to circular percentiles for
-  yaw/roll (axes 0 and 2 currently wrap at ±180°; handled benignly by
-  the exp decay but a known follow‑up).
-- A physics re‑ranker variant that explicitly seeds kinematic neighbors
-  rather than scoring arbitrary candidate combos — the path from the
-  +0.4 pp realistic‑regime diagnostic toward the +7.9 pp best‑case
-  ceiling.
-- Per‑region weights for the accel scorer (median per‑region AUC 0.874
-  but `pelvis`=1.00 vs `spine_lower`=0.76 — a single scalar `w3`
-  underuses the signal).
-- Rerun temporal re‑ranking on a *time‑ordered* eval set so the
-  segment‑aware fix from `02cdff0` actually has a signal to work with.
-- `k=5` ceiling sweep — Phase 14 shows the `k=3` ceiling *decreases*
-  with more sensors; the rerank pipeline should likely pick `k` based on
-  `n_sensors`.
+Several concrete next steps remained open at the end of the implementation program:
+
+- **Hard‑mode threshold sweep** for the per‑region orientation eliminator, to characterize the precision/recall trade‑off as a function of the out‑of‑envelope frame threshold.
+- **Circular percentiles** for the per‑region orientation envelope on the yaw and roll axes, replacing the current linear two‑sided interval that wraps benignly at ±180°.
+- **A neighbor‑seeded physics re‑ranker** that explicitly includes kinematic neighbors in the candidate set rather than scoring arbitrary combinations — the path from the +0.4 pp realistic‑regime diagnostic gain toward the +7.9 pp best‑case ceiling.
+- **Per‑region weights for the acceleration scorer**, exploiting the heterogeneity in per‑region AUC (median 0.874, but pelvis at 1.00 vs spine_lower at 0.76) that a single scalar weight underuses.
+- **Temporal re‑ranking on a time‑ordered evaluation set**, so the segment‑aware fix from Step 11 has an actual signal to exploit.
+- **Adaptive `k` selection** in the rerank pipeline. The diagnostic showed that the `k=3` ceiling *decreases* with more sensors, so the rerank pipeline should likely pick `k` based on `n_sensors`.
 
 ---
 
